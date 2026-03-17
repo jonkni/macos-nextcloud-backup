@@ -3,8 +3,56 @@
 import click
 from pathlib import Path
 import sys
+import logging
+from datetime import datetime
 
 from mnb import __version__
+from mnb.config.manager import ConfigManager
+from mnb.core.backup_engine import BackupEngine
+from mnb.storage.webdav import WebDAVClient
+
+
+def _load_config(config_path=None):
+    """Load configuration or exit if not found."""
+    config_mgr = ConfigManager(Path(config_path) if config_path else None)
+
+    if not config_mgr.config_path.exists():
+        click.echo(click.style('Error: Configuration not found', fg='red'))
+        click.echo(f'Expected at: {config_mgr.config_path}')
+        click.echo()
+        click.echo('Initialize configuration with: mnb init')
+        sys.exit(1)
+
+    try:
+        config_mgr.load()
+    except Exception as e:
+        click.echo(click.style(f'Error loading config: {e}', fg='red'))
+        sys.exit(1)
+
+    return config_mgr
+
+
+def _setup_logging(verbose=0):
+    """Setup logging based on verbosity."""
+    level = logging.WARNING
+    if verbose == 1:
+        level = logging.INFO
+    elif verbose >= 2:
+        level = logging.DEBUG
+
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+
+def _format_size(bytes_size):
+    """Format bytes to human readable size."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if bytes_size < 1024.0:
+            return f"{bytes_size:.2f} {unit}"
+        bytes_size /= 1024.0
+    return f"{bytes_size:.2f} PB"
 
 
 @click.group()
@@ -21,6 +69,7 @@ def cli(ctx, config, verbose):
     ctx.ensure_object(dict)
     ctx.obj['config_path'] = config
     ctx.obj['verbose'] = verbose
+    _setup_logging(verbose)
 
 
 @cli.command()
@@ -36,7 +85,6 @@ def init(ctx, nextcloud_url, username, machine_name):
     click.echo(click.style('Initializing macOS Nextcloud Backup...', fg='green', bold=True))
     click.echo()
 
-    # TODO: Implement initialization
     click.echo(f'Nextcloud URL: {nextcloud_url}')
     click.echo(f'Username: {username}')
     click.echo(f'Machine name: {machine_name}')
@@ -47,9 +95,41 @@ def init(ctx, nextcloud_url, username, machine_name):
 
     click.echo()
     click.echo(click.style('Testing connection to Nextcloud...', fg='yellow'))
-    # TODO: Test WebDAV connection
 
+    # Test WebDAV connection
+    try:
+        webdav = WebDAVClient(
+            base_url=nextcloud_url,
+            username=username,
+            password=password
+        )
+
+        if not webdav.test_connection():
+            click.echo(click.style('Error: Could not connect to Nextcloud', fg='red'))
+            click.echo('Please check your URL, username, and password.')
+            sys.exit(1)
+
+        click.echo(click.style('✓ Connection successful!', fg='green'))
+    except Exception as e:
+        click.echo(click.style(f'Error: {e}', fg='red'))
+        sys.exit(1)
+
+    # Create default configuration
+    config_mgr = ConfigManager()
+    default_config = ConfigManager.create_default_config(
+        nextcloud_url=nextcloud_url,
+        username=username,
+        machine_name=machine_name
+    )
+
+    # Save configuration (this also saves password to keychain)
+    default_config['nextcloud']['password'] = password
+    config_mgr.save(default_config)
+
+    click.echo()
     click.echo(click.style('Configuration saved!', fg='green'))
+    click.echo(f'Config file: {config_mgr.config_path}')
+    click.echo(f'Password stored in macOS Keychain')
     click.echo()
     click.echo('Next steps:')
     click.echo('  1. Review exclusions: mnb config show')
@@ -72,9 +152,75 @@ def backup(ctx, initial, dry_run):
 
     backup_type = 'initial' if initial else 'incremental'
     click.echo(f'Starting {backup_type} backup...')
+    click.echo()
 
-    # TODO: Implement backup logic
-    click.echo(click.style('Backup not yet implemented', fg='red'))
+    # Load configuration
+    config = _load_config(ctx.obj.get('config_path'))
+
+    # Create backup engine
+    engine = BackupEngine(config)
+
+    # Test connection first
+    click.echo('Testing connection...')
+    if not engine.test_connection():
+        click.echo(click.style('Error: Could not connect to Nextcloud', fg='red'))
+        sys.exit(1)
+
+    click.echo(click.style('✓ Connected', fg='green'))
+    click.echo()
+
+    # Progress tracking
+    from tqdm import tqdm
+    pbar = None
+    current_status = ""
+
+    def progress_callback(status, current, total):
+        nonlocal pbar, current_status
+
+        if status != current_status:
+            if pbar:
+                pbar.close()
+            click.echo(status)
+            current_status = status
+
+            if total > 0:
+                pbar = tqdm(total=total, unit='file')
+
+        if pbar and total > 0:
+            pbar.update(current - pbar.n)
+
+    try:
+        # Run backup
+        result = engine.run_backup(
+            initial=initial,
+            dry_run=dry_run,
+            progress_callback=progress_callback
+        )
+
+        if pbar:
+            pbar.close()
+
+        click.echo()
+        click.echo(click.style('Backup completed successfully!', fg='green', bold=True))
+        click.echo()
+        click.echo(f"Snapshot ID: {result['snapshot_id']}")
+        click.echo(f"Timestamp: {result['timestamp']}")
+        click.echo(f"Files uploaded: {result['files_uploaded']}")
+        click.echo(f"Files unchanged: {result['files_unchanged']}")
+        click.echo(f"Total files: {result['total_files']}")
+        click.echo(f"Uploaded size: {_format_size(result['uploaded_size'])}")
+        click.echo(f"Total size: {_format_size(result['total_size'])}")
+
+        if dry_run:
+            click.echo()
+            click.echo(click.style('This was a dry run - no files were uploaded', fg='yellow'))
+
+    except Exception as e:
+        if pbar:
+            pbar.close()
+        click.echo()
+        click.echo(click.style(f'Backup failed: {e}', fg='red'))
+        sys.exit(1)
 
 
 @cli.command()
@@ -83,9 +229,44 @@ def status(ctx):
     """Show backup status and last backup information."""
     click.echo('Backup Status')
     click.echo('=' * 50)
+    click.echo()
 
-    # TODO: Implement status display
-    click.echo(click.style('Status feature not yet implemented', fg='yellow'))
+    # Load configuration
+    config = _load_config(ctx.obj.get('config_path'))
+
+    # Create backup engine
+    engine = BackupEngine(config)
+
+    # Get statistics
+    stats = engine.get_statistics()
+
+    click.echo(f"Machine: {config.get_machine_name()}")
+    click.echo(f"Nextcloud: {config.get('nextcloud.url')}")
+    click.echo(f"Total snapshots: {stats['total_snapshots']}")
+    click.echo()
+
+    latest = stats.get('latest_snapshot')
+    if latest:
+        click.echo('Latest Backup:')
+        click.echo(f"  Timestamp: {latest['timestamp']}")
+        click.echo(f"  Type: {latest['type']}")
+        click.echo(f"  Files: {latest['file_count']}")
+        click.echo(f"  Size: {_format_size(latest['total_size'])}")
+        click.echo(f"  Status: {latest['status']}")
+
+        # Calculate time since backup
+        from datetime import datetime
+        try:
+            backup_time = datetime.fromisoformat(latest['timestamp'])
+            time_diff = datetime.now() - backup_time
+            hours = int(time_diff.total_seconds() / 3600)
+            click.echo(f"  Age: {hours} hours ago")
+        except:
+            pass
+    else:
+        click.echo(click.style('No backups found', fg='yellow'))
+        click.echo()
+        click.echo('Run your first backup with: mnb backup --initial')
 
 
 @cli.command()
@@ -96,9 +277,37 @@ def list(ctx, show_all, limit):
     """List available backup snapshots."""
     click.echo('Available Snapshots')
     click.echo('=' * 50)
+    click.echo()
 
-    # TODO: Implement snapshot listing
-    click.echo(click.style('List feature not yet implemented', fg='yellow'))
+    # Load configuration
+    config = _load_config(ctx.obj.get('config_path'))
+
+    # Create backup engine
+    engine = BackupEngine(config)
+
+    # Get snapshots
+    if show_all:
+        limit = 1000
+
+    snapshots = engine.list_snapshots(limit=limit)
+
+    if not snapshots:
+        click.echo(click.style('No snapshots found', fg='yellow'))
+        return
+
+    # Display snapshots
+    for snapshot in snapshots:
+        status_color = 'green' if snapshot['status'] == 'completed' else 'red'
+        click.echo(
+            f"{click.style(snapshot['timestamp'], fg='cyan')} "
+            f"[{click.style(snapshot['type'], fg='yellow')}] "
+            f"- {snapshot['file_count']} files, "
+            f"{_format_size(snapshot['total_size'])} "
+            f"({click.style(snapshot['status'], fg=status_color)})"
+        )
+
+    click.echo()
+    click.echo(f"Showing {len(snapshots)} snapshots")
 
 
 @cli.command()
@@ -127,17 +336,56 @@ def restore(ctx, snapshot, path, destination):
 def estimate(ctx):
     """Estimate storage requirements for backup."""
     click.echo('Estimating backup size...')
+    click.echo('This may take a few minutes...')
     click.echo()
 
-    # TODO: Scan filesystem and estimate
-    click.echo(click.style('Estimate feature not yet implemented', fg='yellow'))
-    click.echo()
-    click.echo('Expected output:')
-    click.echo('  Documents: 10.5 GB')
-    click.echo('  Config files: 250 MB')
-    click.echo('  Application data: 5.2 GB')
-    click.echo('  ---')
-    click.echo('  Total initial backup: 15.95 GB')
+    # Load configuration
+    config = _load_config(ctx.obj.get('config_path'))
+
+    # Create backup engine
+    engine = BackupEngine(config)
+
+    # Progress tracking
+    from tqdm import tqdm
+    pbar = tqdm(unit=' files', unit_scale=True)
+
+    def progress_callback(files_scanned, total_size):
+        pbar.update(files_scanned - pbar.n)
+        pbar.set_postfix({'size': _format_size(total_size)})
+
+    try:
+        result = engine.estimate_backup_size(progress_callback)
+        pbar.close()
+
+        click.echo()
+        click.echo(click.style('Estimation complete!', fg='green', bold=True))
+        click.echo()
+        click.echo(f"Total files: {result['file_count']:,}")
+        click.echo(f"Total size: {_format_size(result['total_size'])}")
+        click.echo()
+
+        # Compare with Nextcloud quota
+        total_gb = result['total_size'] / (1024 ** 3)
+        click.echo('Storage recommendations:')
+        click.echo(f"  Minimum: {total_gb:.1f} GB (initial backup only)")
+        click.echo(f"  Recommended: {total_gb * 1.5:.1f} GB (with some growth)")
+        click.echo(f"  Ideal: {total_gb * 2:.1f} GB (comfortable margins)")
+
+        # Your Nextcloud storage
+        click.echo()
+        click.echo(f"Your Nextcloud: 100 GB")
+        if total_gb < 30:
+            click.echo(click.style('✓ Storage should be sufficient', fg='green'))
+        elif total_gb < 50:
+            click.echo(click.style('⚠ Storage may be tight - monitor closely', fg='yellow'))
+        else:
+            click.echo(click.style('⚠ May need more storage', fg='red'))
+
+    except Exception as e:
+        pbar.close()
+        click.echo()
+        click.echo(click.style(f'Estimation failed: {e}', fg='red'))
+        sys.exit(1)
 
 
 @cli.command()
@@ -152,9 +400,30 @@ def clean(ctx, keep_last, older_than, dry_run):
         click.echo()
 
     click.echo('Cleaning old snapshots...')
+    click.echo()
 
-    # TODO: Implement cleanup logic
-    click.echo(click.style('Clean feature not yet implemented', fg='yellow'))
+    # Load configuration
+    config = _load_config(ctx.obj.get('config_path'))
+
+    # Create backup engine
+    engine = BackupEngine(config)
+
+    try:
+        result = engine.clean_old_snapshots(
+            keep_count=keep_last,
+            dry_run=dry_run
+        )
+
+        click.echo(click.style(f"Deleted {result['deleted_count']} snapshots", fg='green'))
+        click.echo(f"Kept {result['kept_count']} snapshots")
+
+        if dry_run:
+            click.echo()
+            click.echo(click.style('This was a dry run - no snapshots were deleted', fg='yellow'))
+
+    except Exception as e:
+        click.echo(click.style(f'Clean failed: {e}', fg='red'))
+        sys.exit(1)
 
 
 @cli.group()
@@ -169,9 +438,22 @@ def config_show(ctx):
     """Show current configuration."""
     click.echo('Current Configuration')
     click.echo('=' * 50)
+    click.echo()
 
-    # TODO: Load and display config
-    click.echo(click.style('Config display not yet implemented', fg='yellow'))
+    # Load configuration
+    config_mgr = _load_config(ctx.obj.get('config_path'))
+
+    # Display configuration (pretty print)
+    import yaml
+    config_display = config_mgr.config.copy()
+
+    # Don't show password
+    if 'nextcloud' in config_display and 'password' in config_display['nextcloud']:
+        config_display['nextcloud']['password'] = '****** (in Keychain)'
+
+    click.echo(yaml.dump(config_display, default_flow_style=False, sort_keys=False))
+    click.echo()
+    click.echo(f"Config file: {config_mgr.config_path}")
 
 
 @config.command('set')
@@ -180,10 +462,29 @@ def config_show(ctx):
 @click.pass_context
 def config_set(ctx, key, value):
     """Set a configuration value."""
-    click.echo(f'Setting {key} = {value}')
+    # Load configuration
+    config_mgr = _load_config(ctx.obj.get('config_path'))
 
-    # TODO: Update config
-    click.echo(click.style('Config update not yet implemented', fg='yellow'))
+    # Set value
+    try:
+        # Try to parse as number or boolean
+        if value.lower() == 'true':
+            value = True
+        elif value.lower() == 'false':
+            value = False
+        elif value.isdigit():
+            value = int(value)
+        elif value.replace('.', '', 1).isdigit():
+            value = float(value)
+
+        config_mgr.set(key, value)
+        config_mgr.save()
+
+        click.echo(click.style(f'✓ Set {key} = {value}', fg='green'))
+
+    except Exception as e:
+        click.echo(click.style(f'Error: {e}', fg='red'))
+        sys.exit(1)
 
 
 @cli.command()
