@@ -13,6 +13,21 @@ This will install the `mnb` command-line tool.
 
 ## First-Time Setup
 
+### 0. Create App Password (Required for 2FA)
+
+**IMPORTANT**: If your Nextcloud has Two-Factor Authentication enabled (like share.educloud.no), you need an app password:
+
+1. **Log in to Nextcloud** via web browser: https://share.educloud.no
+2. Click your **profile icon** → **Personal Settings** (or **Settings**)
+3. Go to **Security** section
+4. Find **"Devices & sessions"** or **"App passwords"** section
+5. Enter a name like **"MacBook Backup"**
+6. Click **"Create new app password"** or **"Generate"**
+7. **Copy the generated password** (format: `xxxxx-xxxxx-xxxxx-xxxxx-xxxxx`)
+8. Keep this password ready for the next step
+
+**Note**: This is NOT your regular Nextcloud password. You must use the app password for API/WebDAV access.
+
 ### 1. Initialize Configuration
 
 Run the setup wizard:
@@ -23,9 +38,9 @@ mnb init
 
 You'll be prompted for:
 - Nextcloud URL: `https://share.educloud.no`
-- Username: your Nextcloud username
-- Password: your Nextcloud password (stored securely in macOS Keychain)
-- Machine name: a unique name for this MacBook (e.g., "MacBook-Pro-Home")
+- Username: your Nextcloud username (e.g., `ec-jonkni`)
+- Password: **USE THE APP PASSWORD** from step 0 above (stored securely in macOS Keychain)
+- Machine name: a unique name for this MacBook (e.g., "MacBook-Air-Home")
 
 The wizard will test the connection and create a configuration file at `~/.config/mnb/config.yml`.
 

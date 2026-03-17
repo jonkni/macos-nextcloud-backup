@@ -90,8 +90,11 @@ def init(ctx, nextcloud_url, username, machine_name):
     click.echo(f'Machine name: {machine_name}')
     click.echo()
 
-    # Prompt for password
-    password = click.prompt('Password', hide_input=True, confirmation_prompt=True)
+    # Prompt for password with 2FA warning
+    click.echo(click.style('Note:', fg='cyan') + ' If 2FA is enabled, use an app password (not your regular password)')
+    click.echo('Create one at: Settings → Security → Devices & sessions')
+    click.echo()
+    password = click.prompt('Password (or app password)', hide_input=True, confirmation_prompt=True)
 
     click.echo()
     click.echo(click.style('Testing connection to Nextcloud...', fg='yellow'))
@@ -105,13 +108,28 @@ def init(ctx, nextcloud_url, username, machine_name):
         )
 
         if not webdav.test_connection():
-            click.echo(click.style('Error: Could not connect to Nextcloud', fg='red'))
-            click.echo('Please check your URL, username, and password.')
+            click.echo()
+            click.echo(click.style('✗ Connection failed', fg='red', bold=True))
+            click.echo()
+            click.echo('Possible causes:')
+            click.echo('  1. ' + click.style('Two-Factor Authentication (2FA) enabled', fg='yellow'))
+            click.echo('     → You must use an app password, not your regular password')
+            click.echo('     → Create one at: Settings → Security → Devices & sessions')
+            click.echo()
+            click.echo('  2. Incorrect URL, username, or password')
+            click.echo('  3. Network connectivity issues')
+            click.echo('  4. WebDAV not enabled on Nextcloud')
+            click.echo()
+            click.echo('For detailed setup instructions, see: QUICKSTART.md')
             sys.exit(1)
 
         click.echo(click.style('✓ Connection successful!', fg='green'))
     except Exception as e:
-        click.echo(click.style(f'Error: {e}', fg='red'))
+        click.echo()
+        click.echo(click.style(f'✗ Error: {e}', fg='red'))
+        click.echo()
+        click.echo('If 2FA is enabled, you need an app password.')
+        click.echo('See QUICKSTART.md for instructions.')
         sys.exit(1)
 
     # Create default configuration

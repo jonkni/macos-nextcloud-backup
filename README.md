@@ -104,26 +104,35 @@ For a developer's MacBook with selective backup:
 - Python 3.9+
 - Nextcloud instance with WebDAV access
 - Storage quota: 50+ GB per machine
+- **App password** from Nextcloud (required if 2FA is enabled)
+
+### Important: Two-Factor Authentication
+
+If your Nextcloud has 2FA enabled (like share.educloud.no):
+
+1. Log in to Nextcloud web interface
+2. Go to **Settings** → **Security** → **Devices & sessions**
+3. Create a new **app password** with a name like "MacBook Backup"
+4. Copy the generated password (format: `xxxxx-xxxxx-xxxxx-xxxxx-xxxxx`)
+5. Use this app password (not your regular password) when running `mnb init`
+
+See [QUICKSTART.md](QUICKSTART.md) for detailed instructions.
 
 ### Quick Start
 
 ```bash
-# Install via Homebrew (planned)
-brew install macos-nextcloud-backup
-
-# Or install from source
+# Install from source
 git clone https://github.com/YOUR_USERNAME/macos-nextcloud-backup.git
 cd macos-nextcloud-backup
 pip install -e .
 
-# Configure
-mnb init --nextcloud-url https://share.educloud.no
-mnb config set --machine-name "MacBook-Pro-Home"
+# Configure (will prompt for Nextcloud credentials)
+mnb init
 
 # Run first backup
 mnb backup --initial
 
-# Enable automatic backups
+# Enable automatic backups (coming soon)
 mnb schedule --interval hourly
 ```
 
