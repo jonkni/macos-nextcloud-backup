@@ -1,0 +1,108 @@
+# Example configuration for macOS Nextcloud Backup
+# Copy to ~/.config/mnb/config.yml and customize
+
+# Nextcloud connection settings
+nextcloud:
+  url: https://share.educloud.no
+  username: your-username
+  # Password is stored in macOS Keychain, not here!
+  webdav_path: /remote.php/dav/files/USERNAME/
+  backup_folder: backup  # Folder in Nextcloud to store backups
+
+# Machine identification
+machine:
+  name: MacBook-Pro-Home  # Unique name for this machine
+  hostname: johns-mbp.local  # Auto-detected if not set
+
+# Backup settings
+backup:
+  # Scheduling
+  interval: hourly  # hourly, daily, weekly, manual
+
+  # Retention policy
+  retain:
+    hourly: 12      # Keep last 12 hourly backups (12 hours)
+    daily: 5        # Keep 5 daily backups (5 days)
+    weekly: 2       # Keep 2 weekly backups (2 weeks)
+    monthly: 0      # Don't keep monthly backups (save space)
+
+  # Performance settings
+  max_upload_speed: 0  # MB/s, 0 = unlimited
+  chunk_size: 10       # MB, for resumable uploads
+  parallel_uploads: 3  # Number of files to upload in parallel
+
+  # Change detection
+  checksum: fast  # fast (size+mtime), full (SHA256)
+
+# Paths to include in backup
+include_paths:
+  - ~/Documents/
+  - ~/Desktop/
+  - ~/Projects/  # Add your project folders
+  - ~/.ssh/
+  - ~/.config/
+  - ~/.zshrc
+  - ~/.bashrc
+  - ~/.gitconfig
+  - ~/Library/Application Support/Code/User/  # VS Code settings
+  - ~/Library/Preferences/
+
+# Exclude patterns (gitignore-style)
+exclude_patterns:
+  # Version control
+  - "**/.git/"
+  - "**/.svn/"
+
+  # Dependencies and build artifacts
+  - "**/node_modules/"
+  - "**/venv/"
+  - "**/.venv/"
+  - "**/env/"
+  - "**/__pycache__/"
+  - "**/target/"
+  - "**/dist/"
+  - "**/build/"
+  - "**/.cargo/"
+  - "**/.npm/"
+
+  # macOS specific
+  - "**/.DS_Store"
+  - "**/.Spotlight-V100/"
+  - "**/.Trashes/"
+
+  # iCloud synced folders (already backed up)
+  - "~/Library/Mobile Documents/"  # iCloud Drive
+  - "~/Pictures/Photos Library.photoslibrary/"  # Photos
+  - "~/Music/iTunes/"  # iTunes/Music
+
+  # Large files and caches
+  - "~/Downloads/"
+  - "~/Library/Caches/"
+  - "~/Library/Logs/"
+  - "**/*.log"
+  - "**/*.tmp"
+  - "**/.cache/"
+
+  # Database files (might be too large)
+  - "**/*.sqlite-wal"
+  - "**/*.sqlite-shm"
+
+  # VM and container images
+  - "**/*.vmdk"
+  - "**/*.vdi"
+  - "**/*.qcow2"
+  - "**/*.iso"
+  - "**/Docker.raw"
+
+# Notification settings
+notifications:
+  enabled: true
+  on_success: false  # Only notify on errors by default
+  on_error: true
+
+# Logging
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  file: ~/Library/Logs/mnb.log
+  max_size: 10  # MB
+  backup_count: 5  # Number of old log files to keep
