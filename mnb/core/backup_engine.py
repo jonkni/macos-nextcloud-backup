@@ -75,10 +75,12 @@ class BackupEngine:
         snapshot_id = self.metadata.create_snapshot(timestamp, backup_type)
 
         try:
-            # Ensure backup folder exists
+            # Define snapshot folder path
+            snapshot_folder = f"{self.backup_folder}/snapshots/{timestamp}"
+
+            # Ensure backup folder exists (skip in dry-run)
             if not dry_run:
                 self.webdav.makedirs(self.backup_folder)
-                snapshot_folder = f"{self.backup_folder}/snapshots/{timestamp}"
                 self.webdav.makedirs(snapshot_folder)
 
             # Scan files
