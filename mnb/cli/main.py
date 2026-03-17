@@ -48,6 +48,10 @@ def _setup_logging(verbose=0):
 
 def _format_size(bytes_size):
     """Format bytes to human readable size."""
+    if bytes_size is None:
+        return "Unknown"
+    if bytes_size == 0:
+        return "0 B"
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if bytes_size < 1024.0:
             return f"{bytes_size:.2f} {unit}"
