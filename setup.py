@@ -38,6 +38,7 @@ setup(
     entry_points={
         "console_scripts": [
             "mnb=mnb.cli.main:cli",
+            "mnb-gui=mnb.gui.menubar:main",
         ],
     },
 )

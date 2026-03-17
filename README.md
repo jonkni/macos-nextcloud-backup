@@ -29,7 +29,7 @@ This tool provides automated, incremental backups of your macOS system to a Next
 
 ### Interface
 - **CLI Tool**: Command-line interface for scripting and automation
-- **GUI Application** (planned): macOS menu bar app for monitoring and control
+- **GUI Application**: macOS menu bar app for quick status, backups, and restore
 - **Web Dashboard** (planned): View backup status from any device
 
 ## Architecture
@@ -213,9 +213,13 @@ mnb schedule --status
 
 # Disable automatic backups
 mnb schedule --disable
+
+# Launch GUI (menu bar app)
+mnb-gui
 ```
 
 See [SCHEDULING.md](SCHEDULING.md) for detailed scheduling documentation.
+See [GUI.md](GUI.md) for GUI features and usage.
 
 ## Development Roadmap
 
