@@ -23,7 +23,7 @@ This tool provides automated, incremental backups of your macOS system to a Next
   - Build artifacts (node_modules, target, dist, etc.)
   - System cache and temporary files
   - Large media files already backed up elsewhere
-- **Scheduled Backups**: Hourly automated backups via launchd (coming soon)
+- **Scheduled Backups**: Automatic hourly/daily/weekly backups via launchd
 - **Multiple Machine Support**: Manage backups for all your MacBooks
 - **Resumable Backups**: Automatic retry on network failures
 
@@ -204,7 +204,18 @@ mnb estimate
 
 # Clean old snapshots
 mnb clean --keep-last 10
+
+# Set up automatic backups
+mnb schedule --interval hourly
+
+# Check scheduler status
+mnb schedule --status
+
+# Disable automatic backups
+mnb schedule --disable
 ```
+
+See [SCHEDULING.md](SCHEDULING.md) for detailed scheduling documentation.
 
 ## Development Roadmap
 

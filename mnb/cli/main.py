@@ -513,25 +513,91 @@ def config_set(ctx, key, value):
 @click.option('--interval', type=click.Choice(['hourly', 'daily', 'weekly']),
               default='hourly', help='Backup interval')
 @click.option('--disable', is_flag=True, help='Disable automatic backups')
+@click.option('--status', 'show_status', is_flag=True, help='Show scheduler status')
 @click.pass_context
-def schedule(ctx, interval, disable):
+def schedule(ctx, interval, disable, show_status):
     """Configure automatic backup scheduling.
 
     Sets up launchd to run backups automatically on the specified interval.
     """
-    if disable:
-        click.echo('Disabling automatic backups...')
-        # TODO: Remove launchd plist
-        click.echo(click.style('Schedule disable not yet implemented', fg='yellow'))
+    from mnb.utils.scheduler import LaunchdScheduler
+
+    scheduler = LaunchdScheduler()
+
+    # Show status
+    if show_status:
+        status = scheduler.get_status()
+        click.echo('Scheduler Status')
+        click.echo('=' * 50)
+        click.echo()
+
+        if status['installed']:
+            click.echo(click.style('✓ Automatic backups: ENABLED', fg='green'))
+            click.echo(f"Running: {'Yes' if status['running'] else 'No'}")
+            click.echo(f"Plist: {status['plist_path']}")
+            click.echo()
+            click.echo('Logs:')
+            click.echo(f"  Output: ~/Library/Logs/mnb-backup.log")
+            click.echo(f"  Errors: ~/Library/Logs/mnb-backup-error.log")
+        else:
+            click.echo(click.style('✗ Automatic backups: DISABLED', fg='yellow'))
+            click.echo()
+            click.echo('Enable with: mnb schedule --interval hourly')
+
         return
 
-    click.echo(f'Setting up {interval} automatic backups...')
+    # Disable scheduling
+    if disable:
+        click.echo('Disabling automatic backups...')
 
-    # TODO: Generate and install launchd plist
-    click.echo(click.style('Schedule feature not yet implemented', fg='yellow'))
+        if not scheduler.is_installed():
+            click.echo(click.style('Automatic backups are not enabled', fg='yellow'))
+            return
+
+        try:
+            scheduler.uninstall()
+            click.echo(click.style('✓ Automatic backups disabled', fg='green'))
+            click.echo()
+            click.echo('Re-enable with: mnb schedule --interval hourly')
+        except Exception as e:
+            click.echo(click.style(f'Error: {e}', fg='red'))
+            sys.exit(1)
+
+        return
+
+    # Enable scheduling
+    click.echo(f'Setting up {interval} automatic backups...')
     click.echo()
-    click.echo(f'Backups will run {interval}')
-    click.echo('To check status: launchctl list | grep mnb')
+
+    # Check if configuration exists
+    config_path = Path.home() / '.config' / 'mnb' / 'config.yml'
+    if not config_path.exists():
+        click.echo(click.style('Error: Configuration not found', fg='red'))
+        click.echo('Run "mnb init" first to set up your backup')
+        sys.exit(1)
+
+    try:
+        # Install scheduler
+        scheduler.install(interval)
+
+        click.echo(click.style('✓ Automatic backups enabled!', fg='green', bold=True))
+        click.echo()
+        click.echo(f'Backups will run every {interval}')
+        click.echo()
+        click.echo('Details:')
+        click.echo(f'  Interval: {interval}')
+        click.echo(f'  Command: mnb backup')
+        click.echo(f'  Logs: ~/Library/Logs/mnb-backup.log')
+        click.echo()
+        click.echo('Useful commands:')
+        click.echo('  mnb schedule --status     # Check status')
+        click.echo('  mnb schedule --disable    # Disable scheduling')
+        click.echo('  tail -f ~/Library/Logs/mnb-backup.log  # Watch logs')
+        click.echo('  launchctl list | grep mnb # Check launchd status')
+
+    except Exception as e:
+        click.echo(click.style(f'Error setting up scheduler: {e}', fg='red'))
+        sys.exit(1)
 
 
 if __name__ == '__main__':
