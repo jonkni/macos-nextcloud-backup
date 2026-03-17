@@ -162,12 +162,16 @@ def init(ctx, nextcloud_url, username, machine_name):
 @cli.command()
 @click.option('--initial', is_flag=True, help='First backup (full)')
 @click.option('--dry-run', is_flag=True, help='Show what would be backed up')
+@click.option('--force', is_flag=True, help='Force backup even if another is running')
 @click.pass_context
-def backup(ctx, initial, dry_run):
+def backup(ctx, initial, dry_run, force):
     """Run a backup.
 
     By default, runs an incremental backup. Use --initial for the first backup.
     """
+    from mnb.utils.lock import BackupLock
+    from mnb.utils.network import check_nextcloud_connectivity
+
     if dry_run:
         click.echo(click.style('DRY RUN MODE - No files will be uploaded', fg='yellow', bold=True))
         click.echo()
@@ -176,8 +180,48 @@ def backup(ctx, initial, dry_run):
     click.echo(f'Starting {backup_type} backup...')
     click.echo()
 
+    # Check for existing backup (unless forced or dry-run)
+    if not force and not dry_run:
+        lock = BackupLock()
+        if lock.is_locked():
+            lock_info = lock.get_lock_info()
+            click.echo(click.style('⚠ Another backup is already running', fg='yellow', bold=True))
+            if lock_info:
+                click.echo(f"PID: {lock_info['pid']}")
+                click.echo(f"Command: {lock_info['cmdline']}")
+            click.echo()
+            click.echo('Wait for it to complete, or use --force to override')
+            sys.exit(1)
+
     # Load configuration
     config = _load_config(ctx.obj.get('config_path'))
+
+    # Check network connectivity (unless dry-run)
+    if not dry_run:
+        click.echo('Checking network connectivity...')
+        connectivity = check_nextcloud_connectivity(
+            config.get('nextcloud.url'),
+            timeout=5
+        )
+
+        if not connectivity['network_available']:
+            click.echo(click.style('✗ No network connection', fg='red'))
+            click.echo()
+            click.echo('Cannot run backup without network access.')
+            click.echo('Connect to network and try again.')
+            sys.exit(1)
+
+        if not connectivity['nextcloud_reachable']:
+            click.echo(click.style(f"✗ Cannot reach Nextcloud", fg='red'))
+            click.echo(f"URL: {config.get('nextcloud.url')}")
+            click.echo()
+            click.echo('Possible causes:')
+            click.echo('  - VPN required but not connected')
+            click.echo('  - Nextcloud server is down')
+            click.echo('  - Firewall blocking access')
+            sys.exit(1)
+
+        click.echo(click.style('✓ Network OK', fg='green'))
 
     # Create backup engine
     engine = BackupEngine(config)
@@ -211,7 +255,14 @@ def backup(ctx, initial, dry_run):
         if pbar and total > 0:
             pbar.update(current - pbar.n)
 
+    # Acquire lock (unless dry-run or forced)
+    lock = None if (dry_run or force) else BackupLock()
+
     try:
+        # Acquire lock for real backups
+        if lock:
+            lock.acquire()
+
         # Run backup
         result = engine.run_backup(
             initial=initial,
@@ -243,6 +294,10 @@ def backup(ctx, initial, dry_run):
         click.echo()
         click.echo(click.style(f'Backup failed: {e}', fg='red'))
         sys.exit(1)
+    finally:
+        # Release lock
+        if lock:
+            lock.release()
 
 
 @cli.command()

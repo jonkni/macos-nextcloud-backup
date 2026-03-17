@@ -72,7 +72,7 @@ class LaunchdScheduler:
     <integer>{interval_seconds}</integer>
 
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
 
     <key>StandardOutPath</key>
     <string>{log_dir}/mnb-backup.log</string>
