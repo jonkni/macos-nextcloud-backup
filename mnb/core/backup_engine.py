@@ -190,6 +190,12 @@ class BackupEngine:
                         if success:
                             uploaded_count += 1
                             uploaded_size += file_info.size
+                        else:
+                            # Log failed upload for retry
+                            self.logger.warning(
+                                f"Upload failed: {file_info.path} "
+                                f"(will retry in next backup)"
+                            )
 
             # Record unchanged files
             if not initial:
@@ -210,6 +216,9 @@ class BackupEngine:
                                 uploaded=False
                             )
 
+            # Calculate failed uploads
+            files_failed = len(files_to_backup) - uploaded_count
+
             # Complete snapshot
             total_files = len(files_to_backup) + len(files_unchanged)
             self.metadata.complete_snapshot(snapshot_id, total_files, total_size)
@@ -220,6 +229,7 @@ class BackupEngine:
                 'type': backup_type,
                 'files_uploaded': uploaded_count,
                 'files_unchanged': len(files_unchanged),
+                'files_failed': files_failed,
                 'total_files': total_files,
                 'uploaded_size': uploaded_size,
                 'total_size': total_size,
@@ -227,10 +237,17 @@ class BackupEngine:
                 'dry_run': dry_run,
             }
 
-            self.logger.info(
-                f"Backup completed: {uploaded_count} files uploaded, "
-                f"{len(files_unchanged)} unchanged"
-            )
+            if files_failed > 0:
+                self.logger.warning(
+                    f"Backup completed with {files_failed} failures: "
+                    f"{uploaded_count} uploaded, {len(files_unchanged)} unchanged, "
+                    f"{files_failed} failed (will retry)"
+                )
+            else:
+                self.logger.info(
+                    f"Backup completed: {uploaded_count} files uploaded, "
+                    f"{len(files_unchanged)} unchanged"
+                )
 
             return result
 

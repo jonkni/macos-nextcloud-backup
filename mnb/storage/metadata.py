@@ -270,7 +270,7 @@ class MetadataDB:
             current_info: Current file information
 
         Returns:
-            True if file has changed or doesn't exist in last backup
+            True if file has changed, doesn't exist in last backup, or failed to upload
         """
         latest_snapshot = self.get_latest_snapshot()
         if not latest_snapshot:
@@ -279,6 +279,10 @@ class MetadataDB:
         previous_file = self.get_file_in_snapshot(latest_snapshot['id'], path)
         if not previous_file:
             return True  # File didn't exist in previous backup
+
+        # Check if previous upload failed - need to retry
+        if not previous_file['uploaded']:
+            return True  # Previous upload failed, retry this file
 
         # Compare checksums
         if current_info.checksum != previous_file['checksum']:
