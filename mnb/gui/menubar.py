@@ -92,7 +92,7 @@ class BackupMenuBar(rumps.App):
         scheduler_status = self._get_scheduler_status()
 
         for item in self.menu.values():
-            if item and item.title.startswith('Schedule:'):
+            if item and hasattr(item, 'title') and item.title and item.title.startswith('Schedule:'):
                 if scheduler_status['installed']:
                     item.title = '✓ Schedule: Enabled'
                     item.set_callback(self.toggle_schedule)
