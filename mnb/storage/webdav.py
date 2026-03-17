@@ -2,10 +2,12 @@
 
 import os
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime
 import requests
 from requests.auth import HTTPBasicAuth
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from urllib.parse import urljoin, quote
 
 
@@ -13,7 +15,8 @@ class WebDAVClient:
     """WebDAV client for Nextcloud operations."""
 
     def __init__(self, base_url: str, username: str, password: str,
-                 webdav_path: str = None):
+                 webdav_path: str = None, pool_connections: int = 10,
+                 pool_maxsize: int = 20):
         """Initialize WebDAV client.
 
         Args:
@@ -21,6 +24,8 @@ class WebDAVClient:
             username: Nextcloud username
             password: Nextcloud password
             webdav_path: WebDAV path (default: /remote.php/dav/files/{username}/)
+            pool_connections: Number of connection pools to cache
+            pool_maxsize: Maximum number of connections to save in the pool
         """
         self.base_url = base_url.rstrip('/')
         self.username = username
@@ -32,8 +37,30 @@ class WebDAVClient:
         self.webdav_path = webdav_path
         self.webdav_url = urljoin(self.base_url, webdav_path)
         self.auth = HTTPBasicAuth(username, password)
+
+        # Configure session with connection pooling and retries
         self.session = requests.Session()
         self.session.auth = self.auth
+
+        # Configure retry strategy
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "PROPFIND", "MKCOL"]
+        )
+
+        # Configure connection pooling
+        adapter = HTTPAdapter(
+            pool_connections=pool_connections,
+            pool_maxsize=pool_maxsize,
+            max_retries=retry_strategy
+        )
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
+        # Cache of created directories to avoid redundant checks
+        self._created_dirs: Set[str] = set()
 
     def _get_url(self, remote_path: str) -> str:
         """Get full WebDAV URL for a remote path.
@@ -98,23 +125,44 @@ class WebDAVClient:
         except Exception:
             return False
 
-    def makedirs(self, remote_path: str) -> bool:
+    def makedirs(self, remote_path: str, force_check: bool = False) -> bool:
         """Create directory and all parent directories.
 
         Args:
             remote_path: Remote directory path
+            force_check: If True, check existence even if in cache
 
         Returns:
             True if successful, False otherwise
         """
+        # If already created in this session, skip
+        if remote_path in self._created_dirs and not force_check:
+            return True
+
         parts = remote_path.strip('/').split('/')
         current_path = ''
 
         for part in parts:
             current_path = f"{current_path}/{part}" if current_path else part
-            if not self.exists(current_path):
-                if not self.mkdir(current_path):
+
+            # Skip if already created in this session
+            if current_path in self._created_dirs and not force_check:
+                continue
+
+            # Try to create without checking existence first (optimistic approach)
+            url = self._get_url(current_path)
+            try:
+                response = self.session.request('MKCOL', url, timeout=10)
+                # 201 = created, 405 = already exists (both are success)
+                if response.status_code in [201, 405]:
+                    self._created_dirs.add(current_path)
+                elif response.status_code == 409:
+                    # Conflict - parent doesn't exist, but we're creating from root so shouldn't happen
                     return False
+                else:
+                    return False
+            except Exception:
+                return False
 
         return True
 
@@ -133,9 +181,9 @@ class WebDAVClient:
         try:
             url = self._get_url(remote_path)
 
-            # Ensure parent directory exists
+            # Ensure parent directory exists (uses cache to avoid redundant checks)
             parent = '/'.join(remote_path.rstrip('/').split('/')[:-1])
-            if parent and not self.exists(parent):
+            if parent:
                 self.makedirs(parent)
 
             # Upload file
@@ -152,7 +200,9 @@ class WebDAVClient:
             return response.status_code in [200, 201, 204]
 
         except Exception as e:
-            print(f"Upload failed: {e}")
+            # Log error but don't print (let caller handle)
+            import logging
+            logging.getLogger(__name__).error(f"Upload failed for {local_path}: {e}")
             return False
 
     def download_file(self, remote_path: str, local_path: Path,
@@ -275,6 +325,31 @@ class WebDAVClient:
 
         except Exception:
             return None
+
+    def batch_create_dirs(self, dir_paths: List[str]) -> bool:
+        """Create multiple directories efficiently.
+
+        Args:
+            dir_paths: List of directory paths to create
+
+        Returns:
+            True if all successful, False otherwise
+        """
+        # Sort paths by depth to ensure parents are created first
+        sorted_paths = sorted(set(dir_paths), key=lambda p: p.count('/'))
+
+        for path in sorted_paths:
+            if not self.makedirs(path):
+                return False
+
+        return True
+
+    def clear_dir_cache(self) -> None:
+        """Clear the directory cache.
+
+        Useful if you want to force re-checking directory existence.
+        """
+        self._created_dirs.clear()
 
     def get_quota_info(self) -> Optional[Dict[str, int]]:
         """Get quota information.

@@ -1,9 +1,11 @@
 """Main backup engine."""
 
 from pathlib import Path
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 from datetime import datetime
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 from mnb.config.manager import ConfigManager
 from mnb.storage.webdav import WebDAVClient
@@ -110,46 +112,84 @@ class BackupEngine:
                 f"({len(files_unchanged)} unchanged)"
             )
 
-            # Upload files
+            # Pre-create all necessary directories in batch
+            if not dry_run and files_to_backup:
+                if progress_callback:
+                    progress_callback("Creating directories...", 0, 0)
+
+                # Collect all unique parent directories
+                parent_dirs = set()
+                for file_info in files_to_backup:
+                    try:
+                        rel_path = file_info.path.relative_to(Path.home())
+                        remote_path = f"{snapshot_folder}/{rel_path}"
+                    except ValueError:
+                        remote_path = f"{snapshot_folder}{file_info.path}"
+
+                    parent = '/'.join(remote_path.rstrip('/').split('/')[:-1])
+                    if parent:
+                        parent_dirs.add(parent)
+
+                # Create all directories at once
+                self.webdav.batch_create_dirs(list(parent_dirs))
+
+            # Upload files (with parallel processing)
             uploaded_count = 0
             uploaded_size = 0
+            upload_lock = Lock()
 
-            for file_info in files_to_backup:
-                if progress_callback:
-                    progress_callback(
-                        f"Uploading {file_info.path.name}",
-                        uploaded_count,
-                        len(files_to_backup)
-                    )
+            # Get parallelism setting
+            max_workers = self.config.get('backup.parallel_uploads', 3)
 
+            def upload_single_file(file_info: FileInfo) -> tuple:
+                """Upload a single file and return result."""
                 # Determine remote path
                 try:
                     rel_path = file_info.path.relative_to(Path.home())
                     remote_path = f"{snapshot_folder}/{rel_path}"
                 except ValueError:
-                    # File not under home directory
                     remote_path = f"{snapshot_folder}{file_info.path}"
 
                 # Upload file
                 if not dry_run:
-                    success = self.webdav.upload_file(
-                        file_info.path,
-                        remote_path
-                    )
+                    success = self.webdav.upload_file(file_info.path, remote_path)
                 else:
                     success = True  # Pretend it worked in dry run
 
-                # Record in metadata
-                self.metadata.add_file(
-                    snapshot_id,
-                    file_info,
-                    remote_path,
-                    uploaded=success
-                )
+                return file_info, remote_path, success
 
-                if success:
-                    uploaded_count += 1
-                    uploaded_size += file_info.size
+            # Use ThreadPoolExecutor for parallel uploads
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all upload tasks
+                future_to_file = {
+                    executor.submit(upload_single_file, file_info): file_info
+                    for file_info in files_to_backup
+                }
+
+                # Process completed uploads
+                for future in as_completed(future_to_file):
+                    file_info, remote_path, success = future.result()
+
+                    # Thread-safe progress update
+                    with upload_lock:
+                        if progress_callback:
+                            progress_callback(
+                                f"Uploading {file_info.path.name}",
+                                uploaded_count,
+                                len(files_to_backup)
+                            )
+
+                        # Record in metadata
+                        self.metadata.add_file(
+                            snapshot_id,
+                            file_info,
+                            remote_path,
+                            uploaded=success
+                        )
+
+                        if success:
+                            uploaded_count += 1
+                            uploaded_size += file_info.size
 
             # Record unchanged files
             if not initial:
