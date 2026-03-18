@@ -46,6 +46,17 @@ def _setup_logging(verbose=0):
     )
 
 
+def _log(message, **kwargs):
+    """Output message with timestamp prefix.
+
+    Args:
+        message: Message to output
+        **kwargs: Additional arguments passed to click.echo()
+    """
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    click.echo(f"{timestamp} {message}", **kwargs)
+
+
 def _format_size(bytes_size):
     """Format bytes to human readable size."""
     if bytes_size is None:
@@ -177,7 +188,7 @@ def backup(ctx, initial, dry_run, force):
         click.echo()
 
     backup_type = 'initial' if initial else 'incremental'
-    click.echo(f'Starting {backup_type} backup...')
+    _log(f'Starting {backup_type} backup...')
     click.echo()
 
     # Check for existing backup (unless forced or dry-run)
@@ -198,7 +209,7 @@ def backup(ctx, initial, dry_run, force):
 
     # Check network connectivity (unless dry-run)
     if not dry_run:
-        click.echo('Checking network connectivity...')
+        _log('Checking network connectivity...')
         connectivity = check_nextcloud_connectivity(
             config.get('nextcloud.url'),
             timeout=5
@@ -221,18 +232,18 @@ def backup(ctx, initial, dry_run, force):
             click.echo('  - Firewall blocking access')
             sys.exit(1)
 
-        click.echo(click.style('✓ Network OK', fg='green'))
+        _log(click.style('✓ Network OK', fg='green'))
 
     # Create backup engine
     engine = BackupEngine(config)
 
     # Test connection first
-    click.echo('Testing connection...')
+    _log('Testing connection...')
     if not engine.test_connection():
-        click.echo(click.style('Error: Could not connect to Nextcloud', fg='red'))
+        _log(click.style('Error: Could not connect to Nextcloud', fg='red'))
         sys.exit(1)
 
-    click.echo(click.style('✓ Connected', fg='green'))
+    _log(click.style('✓ Connected', fg='green'))
     click.echo()
 
     # Progress tracking
@@ -246,7 +257,7 @@ def backup(ctx, initial, dry_run, force):
         if status != current_status:
             if pbar:
                 pbar.close()
-            click.echo(status)
+            _log(status)
             current_status = status
 
             if total > 0:
@@ -274,15 +285,15 @@ def backup(ctx, initial, dry_run, force):
             pbar.close()
 
         click.echo()
-        click.echo(click.style('Backup completed successfully!', fg='green', bold=True))
+        _log(click.style('Backup completed successfully!', fg='green', bold=True))
         click.echo()
-        click.echo(f"Snapshot ID: {result['snapshot_id']}")
-        click.echo(f"Timestamp: {result['timestamp']}")
-        click.echo(f"Files uploaded: {result['files_uploaded']}")
-        click.echo(f"Files unchanged: {result['files_unchanged']}")
-        click.echo(f"Total files: {result['total_files']}")
-        click.echo(f"Uploaded size: {_format_size(result['uploaded_size'])}")
-        click.echo(f"Total size: {_format_size(result['total_size'])}")
+        _log(f"Snapshot ID: {result['snapshot_id']}")
+        _log(f"Timestamp: {result['timestamp']}")
+        _log(f"Files uploaded: {result['files_uploaded']}")
+        _log(f"Files unchanged: {result['files_unchanged']}")
+        _log(f"Total files: {result['total_files']}")
+        _log(f"Uploaded size: {_format_size(result['uploaded_size'])}")
+        _log(f"Total size: {_format_size(result['total_size'])}")
 
         if dry_run:
             click.echo()
@@ -292,7 +303,7 @@ def backup(ctx, initial, dry_run, force):
         if pbar:
             pbar.close()
         click.echo()
-        click.echo(click.style(f'Backup failed: {e}', fg='red'))
+        _log(click.style(f'Backup failed: {e}', fg='red'))
         sys.exit(1)
     finally:
         # Release lock
