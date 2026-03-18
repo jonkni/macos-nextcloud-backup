@@ -31,8 +31,6 @@ class BackupMenuBar(rumps.App):
             rumps.MenuItem('Status', callback=self.show_status),
             None,  # Separator
             rumps.MenuItem('Run Backup Now', callback=self.run_backup),
-            rumps.MenuItem('View Snapshots', callback=self.view_snapshots),
-            rumps.MenuItem('Restore Files...', callback=self.restore_files),
             None,
             rumps.MenuItem('View Logs', callback=self.view_logs),
             rumps.MenuItem('Preferences...', callback=self.show_preferences),
@@ -181,60 +179,6 @@ Total Snapshots: {stats['total_snapshots']}"""
             )
             self._run_command(['backup'])
 
-    @rumps.clicked('View Snapshots')
-    def view_snapshots(self, _):
-        """View list of snapshots."""
-        if not self.metadata:
-            rumps.alert(
-                title='No Backups',
-                message='No backup configuration found.',
-                ok='OK'
-            )
-            return
-
-        try:
-            snapshots = self.metadata.list_snapshots(limit=10)
-
-            if not snapshots:
-                rumps.alert(
-                    title='No Snapshots',
-                    message='No backup snapshots found.',
-                    ok='OK'
-                )
-                return
-
-            # Build snapshot list
-            snapshot_text = "Recent Snapshots:\n\n"
-            for snap in snapshots[:5]:
-                timestamp = datetime.fromisoformat(snap['timestamp'])
-                size = self._format_size(snap['total_size'] or 0)
-                file_count = snap['file_count'] or 0
-                snapshot_text += f"• {timestamp.strftime('%Y-%m-%d %H:%M')} - {file_count:,} files ({size})\n"
-
-            snapshot_text += f"\nTotal: {len(snapshots)} snapshots"
-
-            rumps.alert(
-                title='Recent Snapshots',
-                message=snapshot_text,
-                ok='OK'
-            )
-
-        except Exception as e:
-            rumps.alert(
-                title='Error',
-                message=f'Failed to list snapshots: {e}',
-                ok='OK'
-            )
-
-    @rumps.clicked('Restore Files...')
-    def restore_files(self, _):
-        """Restore files from backup."""
-        # TODO: Implement file browser for restore
-        rumps.alert(
-            title='Restore Files',
-            message='File restore is coming soon!\n\nFor now, use the command line:\n\nmnb restore --snapshot <timestamp> --path <path>',
-            ok='OK'
-        )
 
     @rumps.clicked('View Logs')
     def view_logs(self, _):
