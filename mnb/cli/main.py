@@ -251,17 +251,29 @@ def backup(ctx, initial, dry_run, force):
     pbar = None
     current_status = ""
 
+    # Only show progress bars when running in an interactive terminal
+    use_progress_bar = sys.stdout.isatty()
+
     def progress_callback(status, current, total):
         nonlocal pbar, current_status
 
         if status != current_status:
             if pbar:
                 pbar.close()
-            _log(status)
+
+            # Only log status changes that aren't per-file updates
+            # (i.e., log "Scanning files..." but not "Uploading file123.py")
+            if not status.startswith("Uploading "):
+                _log(status)
+
+            # Always show status in interactive mode
+            if use_progress_bar:
+                click.echo(status)
+
             current_status = status
 
-            if total > 0:
-                pbar = tqdm(total=total, unit='file')
+            if total > 0 and use_progress_bar:
+                pbar = tqdm(total=total, unit='file', file=sys.stdout)
 
         if pbar and total > 0:
             pbar.update(current - pbar.n)
