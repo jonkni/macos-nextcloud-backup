@@ -40,8 +40,12 @@ class BackupMenuBar(rumps.App):
             rumps.MenuItem('Schedule: Loading...', callback=None),
         ]
 
-        # Update status periodically
+        # Update status immediately and periodically
         self.update_status()
+
+        # Update status every 30 seconds
+        self.timer = rumps.Timer(self.update_status, 30)
+        self.timer.start()
 
     def _get_icon_path(self):
         """Get path to menu bar icon."""
@@ -204,7 +208,8 @@ Total Snapshots: {stats['total_snapshots']}"""
             for snap in snapshots[:5]:
                 timestamp = datetime.fromisoformat(snap['timestamp'])
                 size = self._format_size(snap['total_size'] or 0)
-                snapshot_text += f"• {timestamp.strftime('%Y-%m-%d %H:%M')} - {snap['file_count']:,} files ({size})\n"
+                file_count = snap['file_count'] or 0
+                snapshot_text += f"• {timestamp.strftime('%Y-%m-%d %H:%M')} - {file_count:,} files ({size})\n"
 
             snapshot_text += f"\nTotal: {len(snapshots)} snapshots"
 
