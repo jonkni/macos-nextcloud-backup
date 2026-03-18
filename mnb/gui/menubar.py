@@ -88,8 +88,12 @@ class BackupMenuBar(rumps.App):
         except Exception:
             return {'installed': False, 'running': False}
 
-    def update_status(self):
-        """Update menu bar status."""
+    def update_status(self, _=None):
+        """Update menu bar status.
+
+        Args:
+            _: Timer sender (unused, but required for rumps.Timer callback)
+        """
         # Update scheduler menu item
         scheduler_status = self._get_scheduler_status()
 
