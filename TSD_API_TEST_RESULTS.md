@@ -1,5 +1,13 @@
 # TSD File API Test Results
 
+> **Context:** Results from testing TSD File API as an alternative to WebDAV for Educloud backups. This investigation confirmed that TSD File API uses **separate storage** from Nextcloud, making it unsuitable for our backup use case.
+>
+> **Conclusion:** Continue using **WebDAV** for Nextcloud backups. TSD File API stores files in TSD infrastructure (not accessible via Nextcloud web interface).
+>
+> **Related:** [TSD_API_TEST_INSTRUCTIONS.md](TSD_API_TEST_INSTRUCTIONS.md) | [TSD_API_RESEARCH.md](TSD_API_RESEARCH.md)
+
+---
+
 **Date:** 2026-03-17
 **Tested by:** jonkni
 **Verdict:** ❌ **NOT SUITABLE for Nextcloud backups**

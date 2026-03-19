@@ -1,5 +1,13 @@
 # TSD File API for Educloud - Investigation
 
+> **Context:** This document investigates whether the TSD File API (used by UiO's research storage platform) could be a better alternative to WebDAV for uploading backups to Educloud. Since Educloud and TSD share infrastructure, the TSD File API is potentially accessible for Educloud storage operations.
+>
+> **Current Implementation:** The backup tool uses **WebDAV** (standard Nextcloud protocol). This investigation explores whether switching to TSD File API would offer better performance or reliability.
+>
+> **Related:** See [EDUCLOUD_SETUP.md](EDUCLOUD_SETUP.md) for standard WebDAV-based setup instructions.
+
+---
+
 ## Correction: TSD File API Works for Educloud!
 
 Based on https://www.uio.no/english/services/it/research/platforms/edu-research/help/storage-guide.html:

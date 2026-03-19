@@ -2,6 +2,12 @@
 
 This guide is specifically for users of **share.educloud.no** (University of Oslo Nextcloud).
 
+## About Educloud Platform
+
+Educloud (share.educloud.no) runs on UiO's research storage platform, which shares its infrastructure with TSD (Tjeneste for Sensitive Data). This backup tool uses **WebDAV** to access Nextcloud, which is the standard and most compatible approach.
+
+**Platform Research:** See `TSD_API_*.md` files for investigation of alternative upload methods (TSD File API). The current implementation uses WebDAV for maximum compatibility with Nextcloud features.
+
 ## Important: 2FA is Enabled
 
 The educloud.no Nextcloud instance has **Two-Factor Authentication (2FA)** enabled. This means you **cannot** use your regular UiO password for API/WebDAV access. You must create an **app password**.

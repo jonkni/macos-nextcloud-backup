@@ -1,5 +1,11 @@
 # TSD File API Testing Instructions
 
+> **Context:** Test procedures for evaluating TSD File API as an alternative upload method to Educloud. These tests verify whether TSD File API uploads are accessible in Nextcloud and compare performance with WebDAV.
+>
+> **Related:** [TSD_API_RESEARCH.md](TSD_API_RESEARCH.md) | [TSD_API_FINDINGS.md](TSD_API_FINDINGS.md) | [TSD_API_TEST_RESULTS.md](TSD_API_TEST_RESULTS.md)
+
+---
+
 ## Goal
 Test if TSD File API uploads files to Nextcloud (share.educloud.no) or separate storage.
 
