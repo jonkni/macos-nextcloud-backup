@@ -203,14 +203,18 @@ mnb schedule                # [x] Setup automatic backups (with --interval, --di
 - [ ] Restore files UI (removed - CLI preferred for restore)
 - [ ] Custom icon (using system default)
 
-### Phase 5: Advanced Features (Priority: Low)
+### Phase 5: Advanced Features (Priority: Low → Medium)
 
-- [ ] Backup encryption (AES-256)
+- [ ] **Backup encryption (AES-256)** ⚠️ **ELEVATED TO HIGH PRIORITY**
+  - Current backups include sensitive data (SSH keys, config files, credentials)
+  - Nextcloud server-side encryption not sufficient (admins can access)
+  - Client-side encryption needed before upload
+  - See Security Considerations section for details
 - [x] Bandwidth throttling (max_upload_speed config)
 - [x] Parallel uploads (configurable worker threads)
-- [ ] Backup verification
-- [ ] Multi-Nextcloud support
-- [ ] Web dashboard
+- [ ] Backup verification (verify uploaded file integrity)
+- [ ] Multi-Nextcloud support (backup to multiple destinations)
+- [ ] Web dashboard (browser-based status/restore interface)
 
 **Additional features implemented:**
 - [x] Network connectivity validation
@@ -345,13 +349,91 @@ macos-nextcloud-backup/
    - Verify restore
    - Measure performance
 
-## Security Considerations
+## Security Considerations & Implementation Status
 
-1. **Credentials**: Store in macOS Keychain, never in config files
-2. **Encryption**: Optional client-side encryption before upload
-3. **Permissions**: Read-only access to system files
-4. **Logging**: Don't log sensitive paths or data
-5. **Network**: HTTPS only, verify certificates
+### 1. Credentials Storage ✅ IMPLEMENTED
+
+**Requirement:** Store in macOS Keychain, never in config files
+
+**Implementation:**
+- Passwords stored in macOS Keychain via `config/manager.py`
+- Config file (`~/.config/mnb/config.yml`) contains URL and username only
+- Keychain integration uses `keyring` library
+- Password retrieved securely at runtime
+
+**Code:** See `config/manager.py` - `_get_password_from_keychain()`, `_store_password_in_keychain()`
+
+### 2. Client-Side Encryption ❌ NOT IMPLEMENTED (HIGH PRIORITY)
+
+**Requirement:** Optional client-side encryption before upload
+
+**Current State:** Files uploaded to Nextcloud **unencrypted**. Nextcloud provides server-side encryption at rest, but files are readable by Nextcloud administrators.
+
+**Priority:** ⚠️ **HIGH** - Backups include sensitive data:
+- SSH private keys (`~/.ssh/`)
+- Configuration files with tokens/secrets (`~/.config/`)
+- Application credentials
+- Personal documents
+
+**Recommendation:** Implement client-side encryption (AES-256) before Phase 5 features. This is critical for protecting sensitive backup content.
+
+**Planned Implementation:**
+```yaml
+# Future config option
+backup:
+  encryption:
+    enabled: true
+    key_derivation: pbkdf2  # Derive from passphrase
+    algorithm: aes-256-gcm
+```
+
+**See:** Phase 5 - Advanced Features (encryption marked for implementation)
+
+### 3. File Access Permissions ✅ APPROPRIATE
+
+**Requirement:** Read-only access to system files
+
+**Implementation:**
+- Tool runs with normal user permissions (not root/sudo)
+- Can only read files the user can access
+- No special privilege escalation
+- System-protected files automatically skipped
+
+**Note:** This is appropriate - tool should backup what the user can access.
+
+### 4. Logging Privacy ✅ IMPLEMENTED
+
+**Requirement:** Don't log sensitive paths or data
+
+**Implementation:**
+- Logs show file counts, sizes, status (not file contents)
+- File paths logged for debugging (necessary for troubleshooting)
+- No credential or file content logging
+- Error messages sanitized
+
+**Consideration:** File paths are logged, which may be considered sensitive. Users with high security needs should review `~/Library/Logs/mnb-backup*.log` files.
+
+### 5. Network Security ✅ IMPLEMENTED
+
+**Requirement:** HTTPS only, verify certificates
+
+**Implementation:**
+- WebDAV client uses HTTPS for all connections
+- Certificate verification enabled by default
+- No HTTP fallback option
+- TLS connection required
+
+**Code:** See `storage/webdav.py` - uses `requests` library with certificate verification
+
+---
+
+### Security Recommendations for Users
+
+1. **Enable encryption when available** (planned feature)
+2. **Use app passwords** (not main Nextcloud password) - especially for 2FA-enabled instances
+3. **Review exclude patterns** to avoid backing up unnecessary sensitive files
+4. **Secure backup logs** - they contain file paths
+5. **Monitor Nextcloud access** - review "Devices & sessions" periodically
 
 ## Performance Targets & Actual Results
 
