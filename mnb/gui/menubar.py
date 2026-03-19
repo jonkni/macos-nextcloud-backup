@@ -35,7 +35,7 @@ class BackupMenuBar(rumps.App):
             rumps.MenuItem('View Logs', callback=self.view_logs),
             rumps.MenuItem('Preferences...', callback=self.show_preferences),
             None,
-            rumps.MenuItem('Schedule: Loading...', callback=None),
+            rumps.MenuItem('Schedule: Loading...', callback=self.toggle_schedule),
         ]
 
         # Update status immediately and periodically
