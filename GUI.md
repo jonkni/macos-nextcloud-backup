@@ -192,28 +192,49 @@ Save as: `MNB Backup.app`
 
 Add to Login Items.
 
-## Features Coming Soon
+## Design Philosophy: GUI for Monitoring, CLI for Power Features
 
-### 🔄 Restore Files
-- Browse backup snapshots
-- Select files to restore
-- Preview before restore
-- Drag-and-drop restore
+The GUI is intentionally **focused on monitoring and quick actions**. Complex operations like browsing snapshots and restoring files are better served by the CLI, which offers:
 
-### 📈 Backup History Graph
-- Visual timeline of backups
-- Size trends over time
-- Success/failure indicators
+- More powerful filtering and search
+- Scriptable operations
+- Better for handling large file lists
+- Familiar interface for advanced users
 
-### ⚠️ Alerts & Warnings
+### What Stays in GUI (Monitoring)
+- ✅ Quick status checks
+- ✅ Manual backup trigger
+- ✅ Schedule management
+- ✅ Log access
+- ✅ Configuration access
+
+### What Stays in CLI (Power Features)
+- `mnb list` - Browse all snapshots with filtering
+- `mnb restore` - Restore files with full control
+- `mnb clean` - Advanced cleanup with retention policies
+- `mnb config` - Detailed configuration management
+
+This separation keeps the GUI lightweight and focused while maintaining full functionality through the CLI.
+
+## Features Under Consideration
+
+These enhancements would improve the monitoring experience without adding complexity:
+
+### ⚠️ Visual Status Indicators
 - Red icon when backup fails
-- Yellow icon when backup is old
-- Notifications for issues
+- Yellow icon when backup is old (>24h)
+- Green when everything is healthy
+- Notifications for critical issues
 
-### 🎨 Custom Icon
-- Visual backup status
-- Progress indicator
-- Different states (idle, backing up, error)
+### 🎨 Custom Menu Bar Icon
+- Visual backup status at a glance
+- Progress indicator during active backup
+- Different states (idle, backing up, error, warning)
+
+### 📊 Quick Stats in Menu
+- Show last backup time directly in menu
+- File count and size summary
+- No dialog needed for quick check
 
 ## Troubleshooting
 
@@ -308,10 +329,22 @@ Very lightweight:
 
 ### Best of Both Worlds
 
-Use both!
-- GUI for quick status and manual triggers
-- CLI for automation and scripting
-- They work together seamlessly
+Use both! They're designed to complement each other:
+
+**GUI (Menu Bar) - For Daily Monitoring:**
+- Quick status checks without opening terminal
+- One-click manual backups
+- Toggle automatic backups on/off
+- Visual presence reminding you backups are running
+
+**CLI (Terminal) - For Power Operations:**
+- Browse and search through all snapshots
+- Restore specific files or directories
+- Advanced configuration and cleanup
+- Automation and scripting
+- Detailed control over backup process
+
+They share the same configuration and database, so you can freely switch between them based on what you're doing.
 
 ## FAQ
 
