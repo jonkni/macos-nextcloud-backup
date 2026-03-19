@@ -7,6 +7,9 @@ requests>=2.31.0
 # Database
 sqlalchemy>=2.0.0
 
+# Encryption
+cryptography>=41.0.0
+
 # macOS integration
 pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'
 keyring>=24.0.0
