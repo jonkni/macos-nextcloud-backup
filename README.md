@@ -15,7 +15,7 @@ This tool provides automated, incremental backups of your macOS system to a Next
 ### Core Functionality
 - **Incremental Backups**: Only changed files are uploaded, similar to Time Machine
 - **High Performance**: Optimized WebDAV with connection pooling, parallel uploads, and caching (2-5x faster)
-- **Deduplication**: Hard-linking for unchanged files to save space
+- **Metadata-Based Deduplication**: Unchanged files referenced (not re-uploaded) to save space
 - **Smart Exclusions**: Automatically exclude:
   - iCloud-synced folders (Photos, Desktop, Documents if synced)
   - Downloads folder
