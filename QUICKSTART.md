@@ -1,5 +1,35 @@
 # Quick Start Guide
 
+## ⚠️ SECURITY WARNING - Read Before Setup
+
+**Current Status: Testing/Development Only - Not Production Ready**
+
+This backup tool does **NOT yet have client-side encryption**. Files are uploaded to Nextcloud **unencrypted**:
+
+- ❌ **SSH keys uploaded unencrypted** - Your private keys readable by Nextcloud admins
+- ❌ **Credentials exposed** - Config files with tokens, passwords, API keys unprotected
+- ❌ **Sensitive data at risk** - Any confidential files accessible to server administrators
+
+**BEFORE running backups:**
+
+1. **For Testing:** Exclude sensitive directories (see below)
+2. **For Production:** Wait for encryption implementation (Phase 4)
+3. **Risk Accepted:** Understand Nextcloud admins can read your files
+
+**Recommended exclusions for testing:**
+```yaml
+exclude_patterns:
+  - ~/.ssh/              # SSH keys
+  - ~/.aws/              # AWS credentials
+  - ~/.config/gh/        # GitHub CLI tokens
+  - ~/.gnupg/            # GPG keys
+  - ~/Documents/sensitive/  # Your sensitive documents
+```
+
+Only proceed if you understand the security implications.
+
+---
+
 ## Installation
 
 ### Install from source
@@ -72,13 +102,15 @@ This will scan your filesystem and show:
 
 ### 4. Run First Backup
 
+⚠️ **Remember:** Files uploaded **unencrypted**. Only use for testing with non-sensitive data.
+
 Run an initial (full) backup:
 
 ```bash
 mnb backup --initial
 ```
 
-Or test it first with a dry run:
+Or test it first with a dry run (recommended):
 
 ```bash
 mnb backup --initial --dry-run
@@ -87,8 +119,10 @@ mnb backup --initial --dry-run
 The backup will:
 - Scan all included paths
 - Skip excluded patterns
-- Upload files to Nextcloud
+- Upload files to Nextcloud **without encryption**
 - Create a snapshot
+
+**Before running:** Review your include/exclude paths to ensure no sensitive data is backed up.
 
 ## Regular Use
 
@@ -144,13 +178,20 @@ mnb clean --keep-last 20 --dry-run
 
 Edit `~/.config/mnb/config.yml` to change what gets backed up:
 
+⚠️ **Security Note:** Until encryption is implemented, avoid backing up:
+- `~/.ssh/` - SSH private keys
+- `~/.config/` - May contain tokens/credentials
+- `~/.aws/`, `~/.gnupg/` - Credentials and keys
+
+**Safe for testing (non-sensitive data):**
 ```yaml
 include_paths:
   - ~/Documents/
   - ~/Desktop/
   - ~/Projects/
-  - ~/.ssh/
-  - ~/.config/
+  # COMMENTED OUT until encryption available:
+  # - ~/.ssh/        # ⚠️ Contains private keys
+  # - ~/.config/     # ⚠️ May contain credentials
 ```
 
 ### Add Exclusions
@@ -180,11 +221,27 @@ backup:
 
 ## Scheduling Automatic Backups
 
-(Coming soon - will use launchd for hourly/daily backups)
+⚠️ **Only schedule if you accept the security risk** (unencrypted uploads)
+
+Enable automatic backups using launchd:
 
 ```bash
+# Set up hourly backups
 mnb schedule --interval hourly
+
+# Or daily
+mnb schedule --interval daily
+
+# Check status
+mnb schedule --status
+
+# Disable
+mnb schedule --disable
 ```
+
+Logs are written to:
+- `~/Library/Logs/mnb-backup.log`
+- `~/Library/Logs/mnb-backup-error.log`
 
 ## Troubleshooting
 
