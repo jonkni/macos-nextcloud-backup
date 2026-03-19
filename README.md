@@ -2,6 +2,25 @@
 
 Time Machine-like incremental backup solution for macOS to Nextcloud.
 
+## ⚠️ Security Notice - Not Production Ready
+
+**Current Status: Beta - Testing Only**
+
+This backup tool is **not currently recommended for production use** due to a critical security limitation:
+
+- ❌ **No client-side encryption** - Files uploaded **unencrypted** to Nextcloud
+- ⚠️ **Sensitive data at risk** - Backups include SSH keys, credentials, config files with secrets
+- ℹ️ **Server-side encryption insufficient** - Nextcloud administrators can access your files
+
+**Before using for real backups:**
+1. Wait for client-side encryption implementation (see Roadmap below)
+2. OR accept the security risk (files readable by Nextcloud admins)
+3. OR exclude sensitive directories (`~/.ssh/`, `~/.config/`, etc.)
+
+**Use for testing and development only until encryption is implemented.**
+
+---
+
 ## Overview
 
 This tool provides automated, incremental backups of your macOS system to a Nextcloud instance via WebDAV. It's designed for users who want:
@@ -122,6 +141,8 @@ See [QUICKSTART.md](QUICKSTART.md) for detailed instructions.
 
 ### Quick Start
 
+⚠️ **Remember:** Currently for testing only - encryption not yet implemented.
+
 ```bash
 # Install from source
 git clone https://github.com/YOUR_USERNAME/macos-nextcloud-backup.git
@@ -131,12 +152,17 @@ pip install -e .
 # Configure (will prompt for Nextcloud credentials)
 mnb init
 
-# Run first backup
+# Run first backup (TESTING ONLY - files uploaded unencrypted)
 mnb backup --initial
 
-# Enable automatic backups (coming soon)
+# Enable automatic backups
 mnb schedule --interval hourly
 ```
+
+**For testing safely:**
+- Consider excluding sensitive directories: `~/.ssh/`, `~/.aws/`, etc.
+- Or test with non-sensitive data only
+- See [Configuration](#configuration) for exclude patterns
 
 ## Configuration
 
@@ -221,33 +247,44 @@ mnb-gui
 See [SCHEDULING.md](SCHEDULING.md) for detailed scheduling documentation.
 See [GUI.md](GUI.md) for GUI features and usage.
 
-## Development Roadmap
+## Development Status & Roadmap
 
-### Phase 1: Core Functionality (Week 1-2)
+### Phase 1: Core Functionality ✅ COMPLETE
 - [x] Project setup
-- [ ] WebDAV client implementation
-- [ ] File scanning and change detection
-- [ ] Incremental backup engine
-- [ ] Basic CLI interface
+- [x] WebDAV client implementation (optimized with connection pooling, parallel uploads)
+- [x] File scanning and change detection
+- [x] Incremental backup engine
+- [x] Basic CLI interface
 
-### Phase 2: Scheduling & Automation (Week 3)
-- [ ] launchd integration
-- [ ] Automatic backup scheduling
-- [ ] Notification system
-- [ ] Error handling and retry logic
+### Phase 2: Scheduling & Automation ✅ COMPLETE
+- [x] launchd integration
+- [x] Automatic backup scheduling (hourly/daily/weekly)
+- [x] Notification system (webhook support for Google Chat, Zabbix)
+- [x] Error handling and retry logic
 
-### Phase 3: GUI Application (Week 4-5)
-- [ ] macOS menu bar app
-- [ ] Backup status display
-- [ ] Manual backup trigger
-- [ ] Settings interface
+### Phase 3: GUI Application ✅ COMPLETE
+- [x] macOS menu bar app (rumps-based)
+- [x] Backup status display
+- [x] Manual backup trigger
+- [x] Settings interface
+- [x] Schedule management
 
-### Phase 4: Advanced Features (Week 6+)
-- [ ] Backup encryption
-- [ ] Bandwidth throttling
-- [ ] Backup verification
+### Phase 4: Security & Advanced Features 🚧 IN PROGRESS
+
+**Critical for Production (HIGH PRIORITY):**
+- [ ] **Client-side encryption (AES-256)** ⚠️ **BLOCKER FOR PRODUCTION USE**
+  - Encrypt files before upload
+  - Protect SSH keys, credentials, sensitive configs
+  - Required before recommending for real backups
+
+**Other Enhancements:**
+- [x] Bandwidth throttling
+- [x] Parallel uploads (configurable workers)
+- [ ] Backup verification (verify uploaded file integrity)
 - [ ] Multiple Nextcloud instance support
 - [ ] Web dashboard
+
+**Project becomes production-ready when encryption is implemented.**
 
 ## Performance
 
@@ -298,8 +335,8 @@ See [TSD_API_TEST_RESULTS.md](TSD_API_TEST_RESULTS.md) for detailed findings.
 - **Efficient**: Minimize network usage and storage (2-5x faster than naive WebDAV)
 - **Resilient**: Handle network failures gracefully with automatic retries
 - **Transparent**: Clear logging and status reporting
-- **Secure**: Credentials in Keychain, optional encryption
-- **Production Ready**: Tested with real Nextcloud instances
+- **Secure**: Credentials in Keychain, ⚠️ encryption in progress (not yet implemented)
+- **Well-Tested**: Functional core tested with real Nextcloud instances (Educloud)
 
 ## Contributing
 
