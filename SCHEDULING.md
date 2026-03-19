@@ -2,6 +2,36 @@
 
 This guide explains how to set up automatic backups using macOS launchd.
 
+## ⚠️ CRITICAL SECURITY WARNING
+
+**DO NOT enable automatic backups until you understand the security implications:**
+
+- ❌ **Files uploaded UNENCRYPTED** - Client-side encryption not yet implemented
+- ⚠️ **Hourly SSH key uploads** - Your private keys uploaded repeatedly without protection
+- ⚠️ **Credentials exposed** - Config files, tokens, passwords readable by Nextcloud admins
+
+**Before enabling scheduled backups:**
+
+1. **Review your include/exclude paths** - Make sure sensitive directories are excluded
+2. **Consider the risk** - Automatic backups mean automatic exposure of sensitive data
+3. **Wait for encryption** - Best practice is to wait for Phase 4 encryption implementation
+
+**Recommended: Exclude sensitive data from automatic backups**
+```yaml
+exclude_patterns:
+  - ~/.ssh/              # SSH private keys
+  - ~/.aws/              # AWS credentials
+  - ~/.config/gh/        # GitHub tokens
+  - ~/.gnupg/            # GPG keys
+```
+
+**Only enable automatic scheduling if:**
+- You exclude all sensitive directories, OR
+- You accept the risk of unencrypted backups, OR
+- You're using for testing only with non-sensitive data
+
+---
+
 ## Quick Start
 
 ### Enable Automatic Backups
@@ -258,6 +288,9 @@ rm ~/Library/Logs/mnb-backup*.log
 
 ## FAQ
 
+**Q: Is it safe to enable automatic backups?**
+A: ⚠️ **Not yet** - Files are uploaded unencrypted. Wait for encryption implementation (Phase 4) or exclude sensitive directories. See security warning at top of this document.
+
 **Q: Will backups run when my laptop is closed?**
 A: No, launchd jobs pause when the laptop sleeps. Backups will resume when you open it.
 
@@ -272,6 +305,9 @@ A: Yes! Manual backups (`mnb backup`) work independently of scheduled backups.
 
 **Q: What happens if a backup is still running when the next one starts?**
 A: The new backup will wait or fail gracefully. Usually not an issue since incremental backups are fast.
+
+**Q: Should I use hourly backups?**
+A: Only if you exclude sensitive data. Hourly backups mean hourly uploads of any changed files - including credentials if they're not excluded.
 
 ## Summary
 

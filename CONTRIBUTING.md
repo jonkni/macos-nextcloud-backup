@@ -85,24 +85,51 @@ git push origin feature/your-feature-name
 
 ## Areas for Contribution
 
-### High Priority
-- WebDAV client implementation
-- File scanner and change detection
-- Backup engine core logic
-- Configuration management
-- Basic CLI commands
+### 🔴 Critical Priority - Security
 
-### Medium Priority
-- launchd scheduling
-- Notification system
-- GUI application
-- Documentation improvements
+**Client-Side Encryption (AES-256)** ⚠️ **BLOCKER FOR PRODUCTION USE**
+- Encrypt files before upload to protect sensitive data
+- Implement key derivation from passphrase (PBKDF2)
+- Support AES-256-GCM encryption
+- Secure key storage in macOS Keychain
+- **This is the #1 priority** - project cannot be recommended for production without it
 
-### Low Priority
-- Backup encryption
-- Advanced features
-- Performance optimizations
-- Multi-platform support
+### 🟡 High Priority - Core Improvements
+
+- **Backup verification** - Verify uploaded file integrity
+- **Restore functionality** - Complete the restore command implementation
+- **Error handling improvements** - Better retry logic for network failures
+- **Performance optimization** - Reduce memory usage during large backups
+- **Documentation** - Improve setup guides, add troubleshooting
+
+### 🟢 Medium Priority - Features
+
+- **Multiple Nextcloud instances** - Backup to multiple destinations
+- **Web dashboard** - Browser-based status/restore interface
+- **Custom retention policies** - More flexible snapshot cleanup rules
+- **Bandwidth monitoring** - Track upload/download statistics
+- **GUI enhancements** - Visual status indicators, custom icons
+
+### 🔵 Low Priority - Nice to Have
+
+- **Compression** - Optional compression before upload
+- **Multi-platform support** - Linux, Windows support
+- **Alternative storage backends** - S3, other WebDAV servers
+- **Advanced exclusion patterns** - More powerful filtering
+
+### ✅ Completed - For Reference
+
+The following areas have been implemented:
+- ✅ WebDAV client with connection pooling and parallel uploads
+- ✅ File scanner with exclusion patterns
+- ✅ Incremental backup engine with metadata tracking
+- ✅ Configuration management with Keychain integration
+- ✅ Full CLI implementation
+- ✅ launchd scheduling support
+- ✅ Webhook notifications (Google Chat, Zabbix)
+- ✅ macOS menu bar GUI application
+- ✅ Network connectivity validation
+- ✅ Backup locking mechanism
 
 ## Reporting Issues
 

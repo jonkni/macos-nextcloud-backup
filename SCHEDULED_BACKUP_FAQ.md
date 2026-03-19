@@ -1,5 +1,15 @@
 # Scheduled Backup FAQ
 
+## ⚠️ Security Warning
+
+**Before enabling scheduled backups, read this:**
+
+Automatic backups mean automatic exposure of sensitive data. Files are uploaded **unencrypted** (client-side encryption not yet implemented). Scheduling hourly backups of directories containing SSH keys, credentials, or tokens creates **hourly uploads of sensitive data** without protection.
+
+**See [SCHEDULING.md](SCHEDULING.md) for full security warning and recommended exclusions.**
+
+---
+
 ## Common Questions About Automatic Backups
 
 ### 1. What if a backup takes longer than the interval?
