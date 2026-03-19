@@ -362,10 +362,66 @@ macos-nextcloud-backup/
 - **Initial backup time**: 2-3 hours for 20 GB (on 50 Mbps connection)
 - **Incremental backup**: < 5 minutes for typical changes
 
-## Questions to Resolve
+## Design Questions & Resolutions
 
-1. Does Nextcloud WebDAV support hard links or need to duplicate files?
-2. Should we compress data before upload?
-3. How to handle large files (>1 GB)?
-4. Chunk size for uploads?
-5. How to handle network interruptions mid-backup?
+These questions were resolved during implementation:
+
+### 1. Does Nextcloud WebDAV support hard links or need to duplicate files?
+
+**Answer:** ❌ Hard links not supported in WebDAV.
+
+**Solution Implemented:** Metadata-based references. The SQLite database tracks which files exist in each snapshot via `remote_path`. Unchanged files reference their location from the previous snapshot without re-uploading. This achieves similar space savings without requiring WebDAV hard link support.
+
+**Implementation:** See `metadata.py` - files table with `uploaded` flag tracks which files were actually uploaded vs. referenced.
+
+### 2. Should we compress data before upload?
+
+**Answer:** ❌ No client-side compression.
+
+**Rationale:**
+- Nextcloud handles storage efficiency server-side
+- Many file types already compressed (images, videos, compressed archives)
+- Client-side compression adds CPU overhead and complexity
+- Would complicate restore process (need to decompress)
+- No clear benefit for most backup content
+
+**Decision:** Upload files as-is, rely on Nextcloud's storage management.
+
+### 3. How to handle large files (>1 GB)?
+
+**Answer:** ✅ Chunked uploads via WebDAV.
+
+**Implementation:**
+- Configurable chunk size: `backup.chunk_size: 10` (MB) in config.yml
+- WebDAV client handles chunked transfer automatically
+- Works well for large files without memory issues
+
+**Code:** See `webdav.py` - chunked upload support built into WebDAV client.
+
+### 4. Chunk size for uploads?
+
+**Answer:** ✅ 10 MB default, configurable.
+
+**Configuration:**
+```yaml
+backup:
+  chunk_size: 10  # MB, adjust based on network reliability
+```
+
+**Rationale:** 10 MB balances memory usage with upload efficiency. Users can adjust based on network conditions.
+
+### 5. How to handle network interruptions mid-backup?
+
+**Answer:** ✅ Multi-layered approach.
+
+**Implementation:**
+1. **Upload tracking:** Failed uploads marked with `uploaded: false` in metadata
+2. **Automatic retry:** Next backup detects failed uploads and retries them
+3. **Incomplete snapshot cleanup:** Snapshots stuck in `in_progress` automatically marked as failed on next backup start
+4. **Network validation:** Pre-flight connectivity check before starting backup
+5. **Connection pooling:** WebDAV client reuses connections for reliability
+
+**Code:**
+- `metadata.py`: `has_file_changed()` returns `True` for failed uploads
+- `backup_engine.py`: `_cleanup_incomplete_snapshots()` handles stuck snapshots
+- `network.py`: `check_nextcloud_connectivity()` validates before backup
