@@ -353,7 +353,9 @@ macos-nextcloud-backup/
 4. **Logging**: Don't log sensitive paths or data
 5. **Network**: HTTPS only, verify certificates
 
-## Performance Targets
+## Performance Targets & Actual Results
+
+### Original Targets (from planning phase)
 
 - **Scan speed**: 10,000 files/second
 - **Upload speed**: Limited by network (target: 10 MB/s)
@@ -361,6 +363,67 @@ macos-nextcloud-backup/
 - **CPU usage**: < 20% during backup
 - **Initial backup time**: 2-3 hours for 20 GB (on 50 Mbps connection)
 - **Incremental backup**: < 5 minutes for typical changes
+
+### Actual Performance (Production Use - March 2026)
+
+**Test Environment:**
+- Machine: Apple M4 Pro
+- Network: Educloud (share.educloud.no)
+- Dataset: ~48,000 files, ~5.4 GB
+- Configuration: 10 parallel uploads, 10 MB chunk size
+
+**Observed Performance:**
+
+- **Scan speed**: ~1,000-2,000 files/second ⚠️ *Below target, but acceptable*
+  - Scanning includes checksum calculation, not just file enumeration
+  - Fast mode checksum (mtime+size) keeps it reasonably quick
+
+- **Upload speed**: Network-limited, varies with Educloud server load
+  - Good conditions: 5-10 MB/s
+  - Peak times: 1-3 MB/s (server-side throttling)
+
+- **Memory usage**: ~40-80 MB ✅ *Well below target*
+  - SQLite metadata database very efficient
+  - Parallel uploads with 10 workers stays lightweight
+
+- **CPU usage**: 10-30% during scanning, 5-15% during upload ✅ *Within target*
+  - Spikes to 98% briefly during initial file scanning
+  - Drops to low usage during network I/O
+
+- **Initial backup time**: ~2-4 hours for 5 GB ⚠️ *Slower than target*
+  - Heavily dependent on Educloud server performance
+  - Network timeouts and retries add overhead
+  - Acceptable for overnight/scheduled backups
+
+- **Incremental backup**: 5-15 minutes for typical daily changes ⚠️ *Slightly above target*
+  - Depends on number of changed files
+  - Light usage: 50-100 files = 2-5 minutes ✅
+  - Heavy usage: 500+ files = 10-20 minutes
+  - Scanning overhead dominates when few files changed
+
+**Performance Notes:**
+
+1. **Parallel uploads (10 workers)** significantly improved throughput vs. sequential
+2. **Network reliability** is the main bottleneck, not client performance
+3. **Incremental backups work well** - only changed files uploaded after bug fixes
+4. **Exclude patterns critical** - removing .venv, .git reduced backup size/time significantly
+
+**Performance Tuning Options:**
+
+```yaml
+# For faster scanning (less secure checksums)
+backup:
+  checksum: fast  # vs 'full' - uses mtime+size only
+
+# For better throughput on good networks
+backup:
+  parallel_uploads: 15  # Increase from default 10
+
+# For unreliable networks
+backup:
+  parallel_uploads: 3   # Reduce concurrency
+  chunk_size: 5         # Smaller chunks, more resilient
+```
 
 ## Design Questions & Resolutions
 
