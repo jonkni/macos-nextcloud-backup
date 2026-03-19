@@ -261,48 +261,57 @@ mnb schedule                # [x] Setup automatic backups (with --interval, --di
 
 ## File Structure
 
+**Actual Implementation** (as of March 2026):
+
+> Note: The implementation consolidated several planned modules for simplicity. For example, `detector.py` and `snapshot.py` were merged into `backup_engine.py` for better cohesion.
+
 ```
 macos-nextcloud-backup/
 ├── README.md
 ├── PLAN.md
+├── QUICKSTART.md
+├── GUI.md
+├── EDUCLOUD_SETUP.md        # Platform-specific setup
+├── TSD_API_*.md             # Platform research docs
 ├── LICENSE
 ├── setup.py
 ├── requirements.txt
+├── config.example.yml       # Example configuration
 ├── .gitignore
-├── mnb/                    # Main package
+├── mnb/                     # Main package
 │   ├── __init__.py
-│   ├── __main__.py         # Entry point
-│   ├── cli/                # CLI interface
+│   ├── __main__.py          # Entry point
+│   ├── cli/                 # CLI interface
 │   │   ├── __init__.py
-│   │   ├── main.py
-│   │   ├── backup.py
-│   │   ├── restore.py
-│   │   └── config.py
-│   ├── core/               # Core logic
+│   │   └── main.py          # All CLI commands (consolidated)
+│   ├── core/                # Core logic
 │   │   ├── __init__.py
-│   │   ├── backup_engine.py
-│   │   ├── scanner.py
-│   │   ├── detector.py
-│   │   └── snapshot.py
-│   ├── storage/            # Storage backends
+│   │   ├── backup_engine.py # Backup orchestration + detection + snapshots
+│   │   └── scanner.py       # File scanning with exclusions
+│   ├── storage/             # Storage backends
 │   │   ├── __init__.py
-│   │   ├── webdav.py
-│   │   └── metadata.py
-│   ├── config/             # Configuration
+│   │   ├── webdav.py        # WebDAV/Nextcloud client
+│   │   └── metadata.py      # SQLite metadata database
+│   ├── config/              # Configuration
 │   │   ├── __init__.py
-│   │   ├── manager.py
-│   │   └── schema.py
-│   └── utils/              # Utilities
+│   │   ├── manager.py       # Config + keychain integration
+│   │   └── schema.py        # Default config schema
+│   ├── gui/                 # GUI application
+│   │   ├── __init__.py
+│   │   └── menubar.py       # macOS menu bar app (rumps)
+│   └── utils/               # Utilities
 │       ├── __init__.py
-│       ├── exclude.py
-│       ├── keychain.py
-│       └── logging.py
-├── tests/                  # Tests
+│       ├── exclude.py       # Pattern matching for exclusions
+│       ├── lock.py          # Backup locking mechanism
+│       ├── network.py       # Network connectivity checks
+│       ├── progress.py      # Progress tracking utilities
+│       └── scheduler.py     # launchd integration
+├── tests/                   # Tests
 │   ├── test_scanner.py
 │   ├── test_webdav.py
 │   └── test_backup.py
-└── gui/                    # GUI app (future)
-    └── menu_bar.py
+├── launch-gui.py            # GUI launcher script
+└── test_workflow.sh         # Integration test script
 ```
 
 ## Next Steps
