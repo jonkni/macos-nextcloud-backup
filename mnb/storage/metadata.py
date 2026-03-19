@@ -331,3 +331,22 @@ class MetadataDB:
                 'latest_snapshot': latest,
                 'total_size': total_size,
             }
+
+    def cleanup_incomplete_snapshots(self) -> int:
+        """Mark incomplete snapshots as failed.
+
+        Returns:
+            Number of snapshots marked as failed
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE snapshots
+                SET status = 'failed',
+                    error_message = 'Backup interrupted or timed out',
+                    completed_at = ?
+                WHERE status = 'in_progress'
+            ''', (datetime.now().isoformat(),))
+            count = cursor.rowcount
+            conn.commit()
+            return count

@@ -71,6 +71,9 @@ class BackupEngine:
         """
         self.logger.info(f"Starting {'initial' if initial else 'incremental'} backup")
 
+        # Clean up old incomplete snapshots (mark as failed)
+        self._cleanup_incomplete_snapshots()
+
         # Create snapshot
         timestamp = datetime.now().isoformat()
         backup_type = 'initial' if initial else 'incremental'
@@ -373,3 +376,16 @@ class BackupEngine:
             Dictionary with backup statistics
         """
         return self.metadata.get_statistics()
+
+    def _cleanup_incomplete_snapshots(self) -> None:
+        """Mark old incomplete snapshots as failed.
+
+        This handles cases where backups were interrupted or killed
+        without properly marking the snapshot as failed.
+        """
+        try:
+            count = self.metadata.cleanup_incomplete_snapshots()
+            if count > 0:
+                self.logger.info(f"Marked {count} incomplete snapshot(s) as failed")
+        except Exception as e:
+            self.logger.warning(f"Failed to cleanup incomplete snapshots: {e}")
