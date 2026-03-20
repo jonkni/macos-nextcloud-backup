@@ -411,6 +411,139 @@ def list(ctx, show_all, limit):
 
 
 @cli.command()
+@click.option('--all', 'delete_all', is_flag=True, help='Delete ALL snapshots')
+@click.option('--unencrypted', is_flag=True, help='Delete only unencrypted snapshots')
+@click.option('--snapshot-id', type=int, help='Delete specific snapshot by ID')
+@click.option('--dry-run', is_flag=True, help='Show what would be deleted without deleting')
+@click.option('--yes', '-y', is_flag=True, help='Skip confirmation prompt')
+@click.pass_context
+def delete(ctx, delete_all, unencrypted, snapshot_id, dry_run, yes):
+    """Delete backup snapshots.
+
+    WARNING: This is a destructive operation that deletes data from both
+    local metadata and remote Nextcloud storage.
+
+    Examples:
+
+      # Delete all unencrypted snapshots (safe after enabling encryption)
+      mnb delete --unencrypted
+
+      # Delete all snapshots (when migrating storage providers)
+      mnb delete --all
+
+      # Delete specific snapshot by ID
+      mnb delete --snapshot-id 42
+
+      # Preview what would be deleted
+      mnb delete --all --dry-run
+    """
+    # Validate options
+    options_count = sum([delete_all, unencrypted, snapshot_id is not None])
+    if options_count == 0:
+        click.echo(click.style('Error: Must specify --all, --unencrypted, or --snapshot-id', fg='red'))
+        click.echo()
+        click.echo('Use "mnb delete --help" for usage information')
+        sys.exit(1)
+
+    if options_count > 1:
+        click.echo(click.style('Error: Can only use one of --all, --unencrypted, or --snapshot-id', fg='red'))
+        sys.exit(1)
+
+    # Load configuration
+    config = _load_config(ctx.obj.get('config_path'))
+
+    # Create backup engine
+    engine = BackupEngine(config)
+
+    # Determine what will be deleted
+    if delete_all:
+        operation = "DELETE ALL SNAPSHOTS"
+        snapshots = engine.list_snapshots(limit=1000)
+        count_estimate = len(snapshots)
+    elif unencrypted:
+        operation = "DELETE UNENCRYPTED SNAPSHOTS"
+        snapshots = engine.list_snapshots(limit=1000)
+        # Count unencrypted snapshots
+        count_estimate = 0
+        for snapshot in snapshots:
+            files = engine.metadata.get_files_in_snapshot(snapshot['id'])
+            if files and any(not f.get('encrypted', False) for f in files):
+                count_estimate += 1
+    else:  # snapshot_id
+        operation = f"DELETE SNAPSHOT {snapshot_id}"
+        snapshot = engine.get_snapshot(snapshot_id)
+        if not snapshot:
+            click.echo(click.style(f'Error: Snapshot {snapshot_id} not found', fg='red'))
+            sys.exit(1)
+        count_estimate = 1
+
+    # Show warning and confirm
+    click.echo()
+    click.echo(click.style('⚠  WARNING: DESTRUCTIVE OPERATION', fg='red', bold=True))
+    click.echo()
+    click.echo(f"Operation: {click.style(operation, fg='yellow')}")
+    click.echo(f"Estimated snapshots to delete: {click.style(str(count_estimate), fg='red', bold=True)}")
+
+    if dry_run:
+        click.echo(click.style('\nDRY RUN MODE - Nothing will be deleted', fg='cyan'))
+    else:
+        click.echo()
+        click.echo('This will:')
+        click.echo('  - Delete snapshot folders from Nextcloud')
+        click.echo('  - Remove metadata from local database')
+        click.echo()
+        click.echo(click.style('This action CANNOT be undone!', fg='red', bold=True))
+
+    if not dry_run and not yes:
+        click.echo()
+        click.confirm(
+            click.style('Are you sure you want to continue?', fg='yellow'),
+            abort=True
+        )
+
+    click.echo()
+    _log('Processing deletion...')
+
+    # Execute deletion
+    try:
+        if delete_all:
+            result = engine.delete_all_snapshots(dry_run=dry_run)
+            click.echo()
+            click.echo(click.style('✓ Deletion complete', fg='green'))
+            click.echo(f"  Deleted: {result['deleted_count']} snapshots")
+            if result['failed_count'] > 0:
+                click.echo(click.style(f"  Failed: {result['failed_count']} snapshots", fg='red'))
+
+        elif unencrypted:
+            result = engine.delete_unencrypted_snapshots(dry_run=dry_run)
+            click.echo()
+            click.echo(click.style('✓ Deletion complete', fg='green'))
+            click.echo(f"  Deleted: {result['deleted_count']} unencrypted snapshots")
+            click.echo(f"  Kept: {result['skipped_count']} encrypted snapshots")
+            if result['failed_count'] > 0:
+                click.echo(click.style(f"  Failed: {result['failed_count']} snapshots", fg='red'))
+
+        else:  # snapshot_id
+            success = engine.delete_snapshot(snapshot_id, dry_run=dry_run)
+            if success:
+                click.echo()
+                click.echo(click.style('✓ Snapshot deleted', fg='green'))
+            else:
+                click.echo()
+                click.echo(click.style('✗ Failed to delete snapshot', fg='red'))
+                sys.exit(1)
+
+        if dry_run:
+            click.echo()
+            click.echo(click.style('DRY RUN - No changes were made', fg='cyan'))
+
+    except Exception as e:
+        click.echo()
+        click.echo(click.style(f'✗ Error: {e}', fg='red'))
+        sys.exit(1)
+
+
+@cli.command()
 @click.option('--snapshot', required=True, help='Snapshot timestamp to restore from')
 @click.option('--path', type=click.Path(), help='Specific path to restore')
 @click.option('--destination', type=click.Path(), help='Where to restore files')

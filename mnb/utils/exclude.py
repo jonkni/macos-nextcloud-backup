@@ -68,19 +68,26 @@ class ExclusionMatcher:
 
         # Handle ** patterns (match any level of directories)
         if '**' in pattern:
-            # Convert ** to * for fnmatch
-            pattern_glob = pattern.replace('**/', '*/')
+            # Remove ** and check if pattern appears anywhere in path
+            # Example: **/venv/ should match any path containing /venv/
+            pattern_clean = pattern.replace('**/', '').replace('**', '')
 
-            # Check if pattern matches any part of the path
+            # Check if pattern matches any suffix of the path
             path_str = str(rel_path)
-            if fnmatch.fnmatch(path_str, pattern_glob):
-                return True
 
-            # Also check each component
-            for i in range(len(rel_path.parts)):
-                partial = '/'.join(rel_path.parts[i:])
-                if fnmatch.fnmatch(partial, pattern_glob):
-                    return True
+            # For patterns like **/venv/, check if any part of path ends with venv/
+            if pattern.endswith('/'):
+                # It's a directory pattern - check if any directory in path matches
+                dir_name = pattern_clean.rstrip('/')
+                for part in rel_path.parts:
+                    if fnmatch.fnmatch(part, dir_name):
+                        return True
+            else:
+                # File pattern - check against path components
+                for i in range(len(rel_path.parts)):
+                    partial = '/'.join(rel_path.parts[i:])
+                    if fnmatch.fnmatch(partial, pattern_clean):
+                        return True
 
             return False
 

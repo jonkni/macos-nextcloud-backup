@@ -142,6 +142,10 @@ class FileScanner:
                         if self.matcher.should_exclude(file_path):
                             continue
 
+                        # Skip special files (sockets, FIFOs, devices)
+                        if not file_path.is_file():
+                            continue
+
                         # Skip if we can't access the file
                         try:
                             info = FileInfo.from_path(file_path, True, self.checksum_mode)

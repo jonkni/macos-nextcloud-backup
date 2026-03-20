@@ -123,26 +123,9 @@ class BackupEngine:
                 f"({len(files_unchanged)} unchanged)"
             )
 
-            # Pre-create all necessary directories in batch
-            if not dry_run and files_to_backup:
-                if progress_callback:
-                    progress_callback("Creating directories...", 0, 0)
-
-                # Collect all unique parent directories
-                parent_dirs = set()
-                for file_info in files_to_backup:
-                    try:
-                        rel_path = file_info.path.relative_to(Path.home())
-                        remote_path = f"{snapshot_folder}/{rel_path}"
-                    except ValueError:
-                        remote_path = f"{snapshot_folder}{file_info.path}"
-
-                    parent = '/'.join(remote_path.rstrip('/').split('/')[:-1])
-                    if parent:
-                        parent_dirs.add(parent)
-
-                # Create all directories at once
-                self.webdav.batch_create_dirs(list(parent_dirs))
+            # Skip batch directory creation - directories are created on-demand during upload
+            # This avoids hanging when there are thousands of files
+            # Each upload_file call creates its parent directory as needed
 
             # Upload files (with parallel processing)
             uploaded_count = 0
@@ -263,12 +246,13 @@ class BackupEngine:
                             str(file_info.path)
                         )
                         if prev_file:
-                            # Reference previous backup
+                            # Reference previous backup (mark as uploaded since it exists in previous snapshot)
                             self.metadata.add_file(
                                 snapshot_id,
                                 file_info,
                                 prev_file['remote_path'],
-                                uploaded=False
+                                uploaded=True,  # File is backed up (in previous snapshot)
+                                encrypted=prev_file.get('encrypted', False)
                             )
 
             # Calculate failed uploads
@@ -428,6 +412,137 @@ class BackupEngine:
             Dictionary with backup statistics
         """
         return self.metadata.get_statistics()
+
+    def delete_snapshot(self, snapshot_id: int, dry_run: bool = False) -> bool:
+        """Delete a specific snapshot.
+
+        Args:
+            snapshot_id: Snapshot ID to delete
+            dry_run: If True, don't actually delete
+
+        Returns:
+            True if successful
+        """
+        snapshot = self.metadata.get_snapshot(snapshot_id)
+        if not snapshot:
+            self.logger.error(f"Snapshot {snapshot_id} not found")
+            return False
+
+        if not dry_run:
+            # Delete from Nextcloud
+            snapshot_folder = f"{self.backup_folder}/snapshots/{snapshot['timestamp']}"
+            try:
+                self.webdav.delete(snapshot_folder)
+            except Exception as e:
+                self.logger.warning(f"Failed to delete remote snapshot folder: {e}")
+
+            # Delete from metadata
+            self.metadata.delete_snapshot(snapshot_id)
+
+        self.logger.info(f"Deleted snapshot {snapshot_id} ({snapshot['timestamp']})")
+        return True
+
+    def delete_all_snapshots(self, dry_run: bool = False) -> Dict[str, Any]:
+        """Delete all snapshots.
+
+        Args:
+            dry_run: If True, don't actually delete
+
+        Returns:
+            Dictionary with deletion results
+        """
+        snapshots = self.metadata.list_snapshots(limit=1000)
+        deleted_count = 0
+        failed_count = 0
+
+        for snapshot in snapshots:
+            try:
+                if not dry_run:
+                    # Delete from Nextcloud
+                    snapshot_folder = f"{self.backup_folder}/snapshots/{snapshot['timestamp']}"
+                    try:
+                        self.webdav.delete(snapshot_folder)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to delete remote folder {snapshot_folder}: {e}")
+
+                    # Delete from metadata
+                    self.metadata.delete_snapshot(snapshot['id'])
+
+                deleted_count += 1
+            except Exception as e:
+                self.logger.error(f"Failed to delete snapshot {snapshot['id']}: {e}")
+                failed_count += 1
+
+        self.logger.info(f"Deleted {deleted_count} snapshots ({failed_count} failed)")
+
+        return {
+            'deleted_count': deleted_count,
+            'failed_count': failed_count,
+            'dry_run': dry_run,
+        }
+
+    def delete_unencrypted_snapshots(self, dry_run: bool = False) -> Dict[str, Any]:
+        """Delete all snapshots that contain unencrypted files.
+
+        Args:
+            dry_run: If True, don't actually delete
+
+        Returns:
+            Dictionary with deletion results
+        """
+        snapshots = self.metadata.list_snapshots(limit=1000)
+        deleted_count = 0
+        failed_count = 0
+        skipped_count = 0
+
+        for snapshot in snapshots:
+            # Check if snapshot has any encrypted files
+            files = self.metadata.get_files_in_snapshot(snapshot['id'])
+
+            # If snapshot has no files, skip it
+            if not files:
+                skipped_count += 1
+                continue
+
+            # Check if all files are encrypted
+            has_encrypted = any(f.get('encrypted', False) for f in files)
+            has_unencrypted = any(not f.get('encrypted', False) for f in files)
+
+            # Delete if snapshot has any unencrypted files
+            if has_unencrypted:
+                try:
+                    if not dry_run:
+                        # Delete from Nextcloud
+                        snapshot_folder = f"{self.backup_folder}/snapshots/{snapshot['timestamp']}"
+                        try:
+                            self.webdav.delete(snapshot_folder)
+                        except Exception as e:
+                            self.logger.warning(f"Failed to delete remote folder {snapshot_folder}: {e}")
+
+                        # Delete from metadata
+                        self.metadata.delete_snapshot(snapshot['id'])
+
+                    deleted_count += 1
+                    self.logger.info(
+                        f"Deleted unencrypted snapshot {snapshot['id']} ({snapshot['timestamp']})"
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to delete snapshot {snapshot['id']}: {e}")
+                    failed_count += 1
+            else:
+                skipped_count += 1
+
+        self.logger.info(
+            f"Deleted {deleted_count} unencrypted snapshots "
+            f"({skipped_count} encrypted snapshots kept, {failed_count} failed)"
+        )
+
+        return {
+            'deleted_count': deleted_count,
+            'skipped_count': skipped_count,
+            'failed_count': failed_count,
+            'dry_run': dry_run,
+        }
 
     def _cleanup_incomplete_snapshots(self) -> None:
         """Mark old incomplete snapshots as failed.
