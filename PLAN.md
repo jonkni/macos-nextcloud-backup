@@ -300,6 +300,11 @@ macos-nextcloud-backup/
 │   │   ├── __init__.py
 │   │   ├── manager.py       # Config + keychain integration
 │   │   └── schema.py        # Default config schema
+│   ├── crypto/              # Encryption (AES-256-GCM)
+│   │   ├── __init__.py
+│   │   ├── encryption.py    # Core encryption primitives
+│   │   ├── key_manager.py   # Keychain integration
+│   │   └── file_crypto.py   # File-level encryption
 │   ├── gui/                 # GUI application
 │   │   ├── __init__.py
 │   │   └── menubar.py       # macOS menu bar app (rumps)

@@ -1,32 +1,27 @@
 # Quick Start Guide
 
-## ⚠️ SECURITY WARNING - Read Before Setup
+## 🔐 Security Features
 
-**Current Status: Testing/Development Only - Not Production Ready**
+**Production Ready - Client-Side Encryption Enabled**
 
-This backup tool does **NOT yet have client-side encryption**. Files are uploaded to Nextcloud **unencrypted**:
+This backup tool provides enterprise-grade security for your backups:
 
-- ❌ **SSH keys uploaded unencrypted** - Your private keys readable by Nextcloud admins
-- ❌ **Credentials exposed** - Config files with tokens, passwords, API keys unprotected
-- ❌ **Sensitive data at risk** - Any confidential files accessible to server administrators
+- ✅ **AES-256-GCM encryption** - Files encrypted before upload
+- ✅ **Zero-knowledge backups** - Nextcloud administrators cannot access your files
+- ✅ **Authenticated encryption** - Tampering detection built-in
+- ✅ **Secure key storage** - Encryption keys stored in macOS Keychain
 
-**BEFORE running backups:**
+**Your sensitive data is protected:**
+- SSH keys, credentials, and configuration files are encrypted before upload
+- Authentication tags detect any file tampering or corruption
+- Encryption keys never leave your Mac
 
-1. **For Testing:** Exclude sensitive directories (see below)
-2. **For Production:** Wait for encryption implementation (Phase 4)
-3. **Risk Accepted:** Understand Nextcloud admins can read your files
-
-**Recommended exclusions for testing:**
-```yaml
-exclude_patterns:
-  - ~/.ssh/              # SSH keys
-  - ~/.aws/              # AWS credentials
-  - ~/.config/gh/        # GitHub CLI tokens
-  - ~/.gnupg/            # GPG keys
-  - ~/Documents/sensitive/  # Your sensitive documents
+**Setup encryption in 1 minute:**
+```bash
+mnb crypto enable
+# Enter a strong passphrase when prompted
+# Passphrase stored securely in macOS Keychain
 ```
-
-Only proceed if you understand the security implications.
 
 ---
 
@@ -100,11 +95,28 @@ This will scan your filesystem and show:
 - Total size
 - Storage recommendations
 
-### 4. Run First Backup
+### 4. Enable Encryption (Strongly Recommended)
 
-⚠️ **Remember:** Files uploaded **unencrypted**. Only use for testing with non-sensitive data.
+Set up client-side encryption to protect your sensitive data:
 
-Run an initial (full) backup:
+```bash
+mnb crypto enable
+```
+
+You'll be prompted to create a passphrase:
+- **Use a strong, unique passphrase** (12+ characters recommended)
+- **Store it securely** (if lost, backups cannot be decrypted)
+- Passphrase is stored in macOS Keychain for automatic encryption/decryption
+
+Check encryption status:
+
+```bash
+mnb crypto status
+```
+
+### 5. Run First Backup
+
+Run an initial (full) encrypted backup:
 
 ```bash
 mnb backup --initial
@@ -119,10 +131,11 @@ mnb backup --initial --dry-run
 The backup will:
 - Scan all included paths
 - Skip excluded patterns
-- Upload files to Nextcloud **without encryption**
+- **Encrypt files** with AES-256-GCM (if encryption enabled)
+- Upload encrypted files to Nextcloud with `.enc` extension
 - Create a snapshot
 
-**Before running:** Review your include/exclude paths to ensure no sensitive data is backed up.
+**Note:** Files are encrypted **before** upload. Nextcloud administrators cannot access your data.
 
 ## Regular Use
 
@@ -178,21 +191,19 @@ mnb clean --keep-last 20 --dry-run
 
 Edit `~/.config/mnb/config.yml` to change what gets backed up:
 
-⚠️ **Security Note:** Until encryption is implemented, avoid backing up:
-- `~/.ssh/` - SSH private keys
-- `~/.config/` - May contain tokens/credentials
-- `~/.aws/`, `~/.gnupg/` - Credentials and keys
-
-**Safe for testing (non-sensitive data):**
+**Recommended paths to backup (encrypted):**
 ```yaml
 include_paths:
   - ~/Documents/
   - ~/Desktop/
   - ~/Projects/
-  # COMMENTED OUT until encryption available:
-  # - ~/.ssh/        # ⚠️ Contains private keys
-  # - ~/.config/     # ⚠️ May contain credentials
+  - ~/.ssh/           # SSH keys (encrypted before upload)
+  - ~/.config/        # Configuration files (encrypted)
+  - ~/.aws/           # AWS credentials (encrypted)
+  - ~/.gnupg/         # GPG keys (encrypted)
 ```
+
+**Note:** With encryption enabled, all files are encrypted before upload, making it safe to backup sensitive directories like `~/.ssh/` and credentials.
 
 ### Add Exclusions
 
@@ -221,9 +232,7 @@ backup:
 
 ## Scheduling Automatic Backups
 
-⚠️ **Only schedule if you accept the security risk** (unencrypted uploads)
-
-Enable automatic backups using launchd:
+Enable automatic encrypted backups using launchd:
 
 ```bash
 # Set up hourly backups
@@ -273,11 +282,23 @@ If you get permission errors:
 
 ### Restore Files
 
-(Coming soon)
+Restore encrypted files (automatically decrypted):
 
 ```bash
-mnb restore --snapshot <timestamp> --path ~/Documents/file.txt
+# Restore specific file from a snapshot
+mnb restore --snapshot-id 39 --path ~/Documents/secret.txt --destination /tmp/restored.txt
+
+# Restore using latest snapshot
+mnb restore --path ~/Documents/important.pdf --destination /tmp/important.pdf
 ```
+
+**How it works:**
+1. Downloads encrypted `.enc` file from Nextcloud
+2. Decrypts using encryption key from macOS Keychain
+3. Verifies authentication tag (detects tampering)
+4. Writes decrypted file to destination
+
+**Note:** Encryption passphrase must be available in Keychain for decryption to work.
 
 ### Multiple Machines
 

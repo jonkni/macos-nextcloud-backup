@@ -1,25 +1,23 @@
 # macOS Nextcloud Backup
 
-Time Machine-like incremental backup solution for macOS to Nextcloud.
+Time Machine-like incremental backup solution for macOS to Nextcloud with client-side encryption.
 
-## ⚠️ Security Notice - Not Production Ready
+## 🔐 Security Features
 
-**Current Status: Beta - Testing Only**
+**Production Ready - Full Client-Side Encryption**
 
-This backup tool is **not currently recommended for production use** due to a critical security limitation:
+This backup tool provides enterprise-grade security for your backups:
 
-- ❌ **No client-side encryption** - Files uploaded **unencrypted** to Nextcloud
-- ⚠️ **Sensitive data at risk** - Backups include SSH keys, credentials, config files with secrets
-- ℹ️ **Server-side encryption insufficient** - Nextcloud administrators can access your files
+- ✅ **AES-256-GCM encryption** - Files encrypted before upload
+- ✅ **Authenticated encryption** - Tampering detection with cryptographic verification
+- ✅ **Secure key derivation** - PBKDF2-HMAC-SHA256 (600,000 iterations)
+- ✅ **macOS Keychain integration** - Encryption keys stored securely, never on disk
+- ✅ **Zero-knowledge backup** - Nextcloud administrators cannot access your files
 
-**Before using for real backups:**
-1. Wait for client-side encryption implementation (see Roadmap below)
-2. OR accept the security risk (files readable by Nextcloud admins)
-3. OR exclude sensitive directories (`~/.ssh/`, `~/.config/`, etc.)
-
-**Use for testing and development only until encryption is implemented.**
-
----
+**Your sensitive data is protected:**
+- SSH keys, credentials, and configuration files encrypted before upload
+- Authentication tags detect any file tampering or corruption
+- Encryption keys never leave your Mac (stored in macOS Keychain)
 
 ## Overview
 
@@ -32,6 +30,11 @@ This tool provides automated, incremental backups of your macOS system to a Next
 ## Features
 
 ### Core Functionality
+- **Client-Side Encryption**: AES-256-GCM authenticated encryption with PBKDF2 key derivation
+  - Files encrypted before upload (zero-knowledge backups)
+  - Tampering detection with authentication tags
+  - Encryption keys stored securely in macOS Keychain
+  - Automatic decryption during restore
 - **Incremental Backups**: Only changed files are uploaded, similar to Time Machine
 - **High Performance**: Optimized WebDAV with connection pooling, parallel uploads, and caching (2-5x faster)
 - **Metadata-Based Deduplication**: Unchanged files referenced (not re-uploaded) to save space
@@ -141,8 +144,6 @@ See [QUICKSTART.md](QUICKSTART.md) for detailed instructions.
 
 ### Quick Start
 
-⚠️ **Remember:** Currently for testing only - encryption not yet implemented.
-
 ```bash
 # Install from source
 git clone https://github.com/YOUR_USERNAME/macos-nextcloud-backup.git
@@ -152,17 +153,23 @@ pip install -e .
 # Configure (will prompt for Nextcloud credentials)
 mnb init
 
-# Run first backup (TESTING ONLY - files uploaded unencrypted)
+# Enable encryption (strongly recommended)
+mnb crypto enable
+# You'll be prompted to create a strong passphrase
+# Passphrase stored securely in macOS Keychain
+
+# Run first encrypted backup
 mnb backup --initial
 
 # Enable automatic backups
 mnb schedule --interval hourly
 ```
 
-**For testing safely:**
-- Consider excluding sensitive directories: `~/.ssh/`, `~/.aws/`, etc.
-- Or test with non-sensitive data only
-- See [Configuration](#configuration) for exclude patterns
+**Security Best Practices:**
+- Enable encryption before your first backup (`mnb crypto enable`)
+- Use a strong, unique passphrase for encryption
+- Backup your encryption passphrase securely (if lost, backups cannot be decrypted)
+- See [ENCRYPTION_DESIGN.md](docs/ENCRYPTION_DESIGN.md) for technical details
 
 ## Configuration
 
@@ -222,8 +229,8 @@ mnb status
 # List snapshots
 mnb list
 
-# Restore from backup
-mnb restore --snapshot 2026-03-17T10:00:00 --path ~/Documents
+# Restore from backup (automatically decrypts if encrypted)
+mnb restore --snapshot-id 39 --path ~/Documents/secret.txt --destination /tmp/restored.txt
 
 # Estimate storage usage
 mnb estimate
@@ -269,22 +276,30 @@ See [GUI.md](GUI.md) for GUI features and usage.
 - [x] Settings interface
 - [x] Schedule management
 
-### Phase 4: Security & Advanced Features 🚧 IN PROGRESS
+### Phase 4: Security & Advanced Features ✅ COMPLETE
 
-**Critical for Production (HIGH PRIORITY):**
-- [ ] **Client-side encryption (AES-256)** ⚠️ **BLOCKER FOR PRODUCTION USE**
-  - Encrypt files before upload
-  - Protect SSH keys, credentials, sensitive configs
-  - Required before recommending for real backups
+**Encryption Implementation:**
+- [x] **Client-side encryption (AES-256-GCM)** ✅ COMPLETE
+  - Files encrypted before upload with authenticated encryption
+  - PBKDF2-HMAC-SHA256 key derivation (600,000 iterations)
+  - macOS Keychain integration for secure key storage
+  - Authentication tags detect tampering and corruption
+  - Automatic decryption during restore
+- [x] **CLI encryption management**
+  - `mnb crypto enable` - Set up encryption with passphrase
+  - `mnb crypto status` - View encryption configuration
+  - `mnb crypto disable` - Disable encryption
+  - `mnb crypto change-passphrase` - Update passphrase
 
-**Other Enhancements:**
+**Other Features:**
 - [x] Bandwidth throttling
 - [x] Parallel uploads (configurable workers)
+- [x] Snapshot deletion (unencrypted cleanup, migration support)
 - [ ] Backup verification (verify uploaded file integrity)
 - [ ] Multiple Nextcloud instance support
 - [ ] Web dashboard
 
-**Project becomes production-ready when encryption is implemented.**
+**Project Status: ✅ Production Ready**
 
 ## Performance
 
@@ -322,20 +337,21 @@ See [TSD_API_TEST_RESULTS.md](TSD_API_TEST_RESULTS.md) for detailed findings.
 
 ### Technologies
 - **Language**: Python 3.9+
+- **Encryption**: AES-256-GCM (cryptography library), PBKDF2-HMAC-SHA256
 - **WebDAV Protocol**: Optimized requests with connection pooling
 - **CLI**: Click framework
-- **GUI**: PyObjC or Rumps (macOS menu bar) - planned
-- **Scheduling**: launchd - planned
+- **GUI**: Rumps (macOS menu bar app)
+- **Scheduling**: launchd
 - **Config**: YAML
 - **Storage**: SQLite for metadata
-- **Credentials**: macOS Keychain
+- **Credentials**: macOS Keychain (passwords and encryption keys)
 
 ### Design Principles
 - **Incremental**: Only backup what changed
 - **Efficient**: Minimize network usage and storage (2-5x faster than naive WebDAV)
 - **Resilient**: Handle network failures gracefully with automatic retries
 - **Transparent**: Clear logging and status reporting
-- **Secure**: Credentials in Keychain, ⚠️ encryption in progress (not yet implemented)
+- **Secure**: AES-256-GCM encryption, credentials in Keychain, zero-knowledge backups
 - **Well-Tested**: Functional core tested with real Nextcloud instances (Educloud)
 
 ## Contributing

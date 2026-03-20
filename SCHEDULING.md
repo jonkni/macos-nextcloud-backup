@@ -2,33 +2,35 @@
 
 This guide explains how to set up automatic backups using macOS launchd.
 
-## ⚠️ CRITICAL SECURITY WARNING
+## 🔐 Security Best Practices
 
-**DO NOT enable automatic backups until you understand the security implications:**
+**Before enabling automatic backups, set up encryption:**
 
-- ❌ **Files uploaded UNENCRYPTED** - Client-side encryption not yet implemented
-- ⚠️ **Hourly SSH key uploads** - Your private keys uploaded repeatedly without protection
-- ⚠️ **Credentials exposed** - Config files, tokens, passwords readable by Nextcloud admins
-
-**Before enabling scheduled backups:**
-
-1. **Review your include/exclude paths** - Make sure sensitive directories are excluded
-2. **Consider the risk** - Automatic backups mean automatic exposure of sensitive data
-3. **Wait for encryption** - Best practice is to wait for Phase 4 encryption implementation
-
-**Recommended: Exclude sensitive data from automatic backups**
-```yaml
-exclude_patterns:
-  - ~/.ssh/              # SSH private keys
-  - ~/.aws/              # AWS credentials
-  - ~/.config/gh/        # GitHub tokens
-  - ~/.gnupg/            # GPG keys
+```bash
+mnb crypto enable
 ```
 
-**Only enable automatic scheduling if:**
-- You exclude all sensitive directories, OR
-- You accept the risk of unencrypted backups, OR
-- You're using for testing only with non-sensitive data
+**With encryption enabled, your automatic backups are secure:**
+
+- ✅ **Files encrypted before upload** - AES-256-GCM authenticated encryption
+- ✅ **SSH keys protected** - Private keys encrypted with your passphrase
+- ✅ **Zero-knowledge backups** - Nextcloud admins cannot access your data
+- ✅ **Tampering detection** - Authentication tags verify file integrity
+
+**Recommended: Include sensitive directories (now safe with encryption)**
+```yaml
+include_paths:
+  - ~/.ssh/              # SSH private keys (encrypted)
+  - ~/.aws/              # AWS credentials (encrypted)
+  - ~/.config/gh/        # GitHub tokens (encrypted)
+  - ~/.gnupg/            # GPG keys (encrypted)
+  - ~/Documents/         # All your documents (encrypted)
+```
+
+**Important:**
+- Enable encryption before scheduling automatic backups
+- Store your encryption passphrase securely (needed for restore)
+- Check encryption status: `mnb crypto status`
 
 ---
 
@@ -289,7 +291,7 @@ rm ~/Library/Logs/mnb-backup*.log
 ## FAQ
 
 **Q: Is it safe to enable automatic backups?**
-A: ⚠️ **Not yet** - Files are uploaded unencrypted. Wait for encryption implementation (Phase 4) or exclude sensitive directories. See security warning at top of this document.
+A: ✅ **Yes, with encryption enabled** - Enable encryption (`mnb crypto enable`) before scheduling backups. Your files will be encrypted with AES-256-GCM before upload, making automatic backups safe for sensitive data like SSH keys, credentials, and configuration files.
 
 **Q: Will backups run when my laptop is closed?**
 A: No, launchd jobs pause when the laptop sleeps. Backups will resume when you open it.

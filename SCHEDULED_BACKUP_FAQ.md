@@ -1,12 +1,21 @@
 # Scheduled Backup FAQ
 
-## ⚠️ Security Warning
+## 🔐 Security Notice
 
-**Before enabling scheduled backups, read this:**
+**Before enabling scheduled backups:**
 
-Automatic backups mean automatic exposure of sensitive data. Files are uploaded **unencrypted** (client-side encryption not yet implemented). Scheduling hourly backups of directories containing SSH keys, credentials, or tokens creates **hourly uploads of sensitive data** without protection.
+Enable client-side encryption to protect your sensitive data:
 
-**See [SCHEDULING.md](SCHEDULING.md) for full security warning and recommended exclusions.**
+```bash
+mnb crypto enable
+```
+
+With encryption enabled, automatic backups safely protect your sensitive files:
+- ✅ SSH keys, credentials, and tokens encrypted before upload
+- ✅ AES-256-GCM authenticated encryption
+- ✅ Zero-knowledge backups (Nextcloud admins cannot access your data)
+
+**See [SCHEDULING.md](SCHEDULING.md) for setup instructions and best practices.**
 
 ---
 
