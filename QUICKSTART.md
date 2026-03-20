@@ -185,6 +185,25 @@ Or test first:
 mnb clean --keep-last 20 --dry-run
 ```
 
+### Delete Snapshots
+
+Delete specific snapshots or all unencrypted snapshots:
+
+```bash
+# Delete all unencrypted snapshots (after enabling encryption)
+mnb delete --unencrypted --dry-run  # Preview first
+mnb delete --unencrypted            # Actually delete
+
+# Delete specific snapshot by ID
+mnb delete --snapshot-id 42
+
+# Delete ALL snapshots (use with caution!)
+mnb delete --all --dry-run  # Preview first
+mnb delete --all -y         # Skip confirmation
+```
+
+**Use case:** After enabling encryption, you may want to delete old unencrypted snapshots to ensure all sensitive data is encrypted in Nextcloud.
+
 ## Customizing Your Backup
 
 ### Modify Include Paths

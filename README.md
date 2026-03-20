@@ -50,8 +50,8 @@ This tool provides automated, incremental backups of your macOS system to a Next
 - **Resumable Backups**: Automatic retry on network failures
 
 ### Interface
-- **CLI Tool**: Command-line interface for scripting and automation
-- **GUI Application**: macOS menu bar app for quick status, backups, and restore
+- **CLI Tool**: Full-featured command-line interface for scripting and automation
+- **GUI Application** (optional): macOS menu bar app for quick status and backups (see [GUI.md](GUI.md))
 - **Web Dashboard** (planned): View backup status from any device
 
 ## Architecture
@@ -220,8 +220,17 @@ include_paths:
 # Initialize configuration
 mnb init
 
+# Enable encryption (strongly recommended)
+mnb crypto enable
+
+# Check encryption status
+mnb crypto status
+
 # Run manual backup
 mnb backup
+
+# Run initial (full) backup
+mnb backup --initial
 
 # Check backup status
 mnb status
@@ -238,6 +247,17 @@ mnb estimate
 # Clean old snapshots
 mnb clean --keep-last 10
 
+# Delete unencrypted snapshots (after enabling encryption)
+mnb delete --unencrypted --dry-run  # Preview first
+mnb delete --unencrypted            # Actually delete
+
+# Delete specific snapshot
+mnb delete --snapshot-id 42
+
+# View/edit configuration
+mnb config show
+mnb config set backup.retain.hourly 24
+
 # Set up automatic backups
 mnb schedule --interval hourly
 
@@ -246,13 +266,17 @@ mnb schedule --status
 
 # Disable automatic backups
 mnb schedule --disable
-
-# Launch GUI (menu bar app)
-mnb-gui
 ```
 
-See [SCHEDULING.md](SCHEDULING.md) for detailed scheduling documentation.
-See [GUI.md](GUI.md) for GUI features and usage.
+**Documentation:**
+- See [SCHEDULING.md](SCHEDULING.md) for detailed scheduling documentation
+- See [docs/ENCRYPTION_DESIGN.md](docs/ENCRYPTION_DESIGN.md) for encryption technical details
+- See [QUICKSTART.md](QUICKSTART.md) for step-by-step setup guide
+
+**Optional GUI:**
+- GUI menu bar app available (requires reinstall: `pip install -e .`)
+- Launch with: `mnb-gui` or `python launch-gui.py`
+- See [GUI.md](GUI.md) for GUI features and usage
 
 ## Development Status & Roadmap
 

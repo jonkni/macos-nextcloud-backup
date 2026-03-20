@@ -52,11 +52,23 @@ pip3 install -e .
 
 ### Launch GUI
 
+**Option 1:** Using the entry point (requires reinstall):
 ```bash
+# Reinstall package to get mnb-gui command
+cd ~/repos/macos-nextcloud-backup
+pip3 install -e .
+
+# Then launch
 mnb-gui
 ```
 
-Or add to login items for auto-start.
+**Option 2:** Direct launch (works without reinstall):
+```bash
+cd ~/repos/macos-nextcloud-backup
+python3 launch-gui.py
+```
+
+**Auto-start:** Add to macOS login items for automatic launch at login.
 
 ## Usage
 
