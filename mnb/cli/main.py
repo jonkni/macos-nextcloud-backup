@@ -544,24 +544,93 @@ def delete(ctx, delete_all, unencrypted, snapshot_id, dry_run, yes):
 
 
 @cli.command()
-@click.option('--snapshot', required=True, help='Snapshot timestamp to restore from')
-@click.option('--path', type=click.Path(), help='Specific path to restore')
-@click.option('--destination', type=click.Path(), help='Where to restore files')
+@click.option('--snapshot-id', type=int, help='Snapshot ID to restore from')
+@click.option('--path', type=click.Path(), help='Specific file path to restore')
+@click.option('--destination', type=click.Path(exists=False), required=True, help='Where to restore file(s)')
 @click.pass_context
-def restore(ctx, snapshot, path, destination):
-    """Restore files from a backup snapshot."""
-    click.echo(f'Restoring from snapshot: {snapshot}')
+def restore(ctx, snapshot_id, path, destination):
+    """Restore files from a backup snapshot.
 
-    if path:
-        click.echo(f'Path: {path}')
+    Examples:
+
+      # Restore a specific file from snapshot 39
+      mnb restore --snapshot-id 39 --path ~/Documents/secret.txt --destination /tmp/restored.txt
+
+      # Restore a file (will use latest snapshot if --snapshot-id not specified)
+      mnb restore --path ~/Documents/important.pdf --destination /tmp/important.pdf
+    """
+    click.echo('Restore from Backup')
+    click.echo('=' * 50)
+    click.echo()
+
+    if not path:
+        click.echo(click.style('Error: --path is required', fg='red'))
+        click.echo()
+        click.echo('Please specify a file path to restore.')
+        click.echo('Full snapshot restore is not yet implemented.')
+        sys.exit(1)
+
+    # Load configuration
+    config = _load_config(ctx.obj.get('config_path'))
+
+    # Create backup engine
+    engine = BackupEngine(config)
+
+    # Determine snapshot to use
+    if snapshot_id is None:
+        # Use latest completed snapshot
+        latest = engine.metadata.get_latest_snapshot()
+        if not latest:
+            click.echo(click.style('Error: No snapshots found', fg='red'))
+            sys.exit(1)
+        snapshot_id = latest['id']
+        click.echo(f"Using latest snapshot: {snapshot_id} ({latest['timestamp']})")
     else:
-        click.echo('Restoring all files')
+        snapshot = engine.get_snapshot(snapshot_id)
+        if not snapshot:
+            click.echo(click.style(f'Error: Snapshot {snapshot_id} not found', fg='red'))
+            sys.exit(1)
+        click.echo(f"Using snapshot: {snapshot_id} ({snapshot['timestamp']})")
 
-    if destination:
-        click.echo(f'Destination: {destination}')
+    click.echo(f"File to restore: {path}")
+    click.echo(f"Destination: {destination}")
+    click.echo()
 
-    # TODO: Implement restore logic
-    click.echo(click.style('Restore feature not yet implemented', fg='red'))
+    # Create destination directory if needed
+    dest_path = Path(destination)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Restore the file
+    _log('Downloading and decrypting file...')
+
+    try:
+        success = engine.restore_file(snapshot_id, path, dest_path)
+
+        if success:
+            click.echo()
+            click.echo(click.style('✓ Restore completed successfully!', fg='green'))
+            click.echo()
+            click.echo(f"File restored to: {dest_path}")
+
+            # Show file info
+            if dest_path.exists():
+                size = dest_path.stat().st_size
+                click.echo(f"Size: {_format_size(size)}")
+        else:
+            click.echo()
+            click.echo(click.style('✗ Restore failed', fg='red'))
+            click.echo()
+            click.echo('Possible causes:')
+            click.echo('  - File not found in snapshot')
+            click.echo('  - Network connection issue')
+            click.echo('  - Decryption key not available')
+            click.echo('  - File corruption or tampering detected')
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo()
+        click.echo(click.style(f'✗ Error: {e}', fg='red'))
+        sys.exit(1)
 
 
 @cli.command()

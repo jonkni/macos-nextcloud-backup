@@ -350,16 +350,57 @@ class BackupEngine:
             self.logger.error(f"File not found in snapshot: {file_path}")
             return False
 
-        # Download from Nextcloud
+        # Check if file is encrypted
+        is_encrypted = file_info.get('encrypted', False)
         remote_path = file_info['remote_path']
-        success = self.webdav.download_file(remote_path, destination, progress_callback)
 
-        if success:
-            self.logger.info(f"Restored {file_path} to {destination}")
-        else:
-            self.logger.error(f"Failed to restore {file_path}")
+        try:
+            if is_encrypted:
+                # Download encrypted file to temporary location
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.enc') as tmp:
+                    temp_encrypted = Path(tmp.name)
 
-        return success
+                # Download encrypted file
+                success = self.webdav.download_file(remote_path, temp_encrypted, progress_callback)
+                if not success:
+                    self.logger.error(f"Failed to download encrypted file: {file_path}")
+                    if temp_encrypted.exists():
+                        temp_encrypted.unlink()
+                    return False
+
+                # Get encryption key
+                encryption_key = self.key_manager.get_encryption_key()
+                if not encryption_key:
+                    self.logger.error("Encryption key not available for decryption")
+                    temp_encrypted.unlink()
+                    return False
+
+                # Decrypt file to destination
+                try:
+                    self.file_crypto.decrypt_file(temp_encrypted, destination, encryption_key)
+                    self.logger.info(f"Restored and decrypted {file_path} to {destination}")
+                    success = True
+                except Exception as e:
+                    self.logger.error(f"Failed to decrypt {file_path}: {e}")
+                    success = False
+                finally:
+                    # Clean up temporary encrypted file
+                    if temp_encrypted.exists():
+                        temp_encrypted.unlink()
+
+            else:
+                # File is not encrypted, download directly
+                success = self.webdav.download_file(remote_path, destination, progress_callback)
+                if success:
+                    self.logger.info(f"Restored {file_path} to {destination}")
+                else:
+                    self.logger.error(f"Failed to restore {file_path}")
+
+            return success
+
+        except Exception as e:
+            self.logger.error(f"Error restoring {file_path}: {e}")
+            return False
 
     def clean_old_snapshots(self, keep_count: Optional[int] = None,
                            dry_run: bool = False) -> Dict[str, Any]:
