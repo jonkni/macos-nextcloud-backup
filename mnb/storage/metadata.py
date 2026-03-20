@@ -75,7 +75,25 @@ class MetadataDB:
                 ON snapshots(timestamp)
             ''')
 
+            # Add encryption columns if they don't exist (migration)
+            self._migrate_schema(cursor)
+
             conn.commit()
+
+    def _migrate_schema(self, cursor):
+        """Migrate database schema for new features.
+
+        Adds encryption-related columns if they don't exist.
+        """
+        # Check if encrypted column exists
+        cursor.execute("PRAGMA table_info(files)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if 'encrypted' not in columns:
+            cursor.execute('ALTER TABLE files ADD COLUMN encrypted BOOLEAN DEFAULT 0')
+
+        if 'encryption_version' not in columns:
+            cursor.execute('ALTER TABLE files ADD COLUMN encryption_version INTEGER DEFAULT NULL')
 
     @contextmanager
     def _get_connection(self):
@@ -147,7 +165,7 @@ class MetadataDB:
             conn.commit()
 
     def add_file(self, snapshot_id: int, file_info: FileInfo,
-                remote_path: str, uploaded: bool = False) -> None:
+                remote_path: str, uploaded: bool = False, encrypted: bool = False) -> None:
         """Add file to snapshot.
 
         Args:
@@ -155,13 +173,14 @@ class MetadataDB:
             file_info: File information
             remote_path: Remote path in backup
             uploaded: Whether file was uploaded
+            encrypted: Whether file is encrypted
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT OR REPLACE INTO files
-                (snapshot_id, path, size, mtime, mode, checksum, remote_path, uploaded)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (snapshot_id, path, size, mtime, mode, checksum, remote_path, uploaded, encrypted, encryption_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 snapshot_id,
                 str(file_info.path),
@@ -170,7 +189,9 @@ class MetadataDB:
                 file_info.mode,
                 file_info.checksum,
                 remote_path,
-                uploaded
+                uploaded,
+                encrypted,
+                1 if encrypted else None  # Encryption version (1 for current format)
             ))
             conn.commit()
 

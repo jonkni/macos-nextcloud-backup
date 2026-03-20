@@ -678,5 +678,227 @@ def schedule(ctx, interval, disable, show_status):
         sys.exit(1)
 
 
+@cli.group()
+def crypto():
+    """Manage backup encryption."""
+    pass
+
+
+@crypto.command('enable')
+@click.pass_context
+def crypto_enable(ctx):
+    """Enable encryption for backups.
+
+    This will prompt for a passphrase, derive an encryption key, and store it
+    securely in macOS Keychain. All future backups will be encrypted.
+    """
+    from mnb.crypto.key_manager import KeyManager
+    from mnb.crypto.encryption import EncryptionError
+
+    click.echo(click.style('Enable Backup Encryption', fg='green', bold=True))
+    click.echo()
+    click.echo('⚠️  Important: Keep your passphrase safe!')
+    click.echo('   - Without it, you cannot restore your backups')
+    click.echo('   - Store it securely (password manager recommended)')
+    click.echo('   - Minimum 12 characters required')
+    click.echo()
+
+    # Load config
+    config = _load_config(ctx.obj.get('config_path'))
+    key_manager = KeyManager(config)
+
+    # Check if already enabled
+    if key_manager.is_encryption_enabled():
+        click.echo(click.style('Encryption is already enabled', fg='yellow'))
+        click.echo()
+        click.echo('To change passphrase: mnb crypto change-passphrase')
+        click.echo('To disable encryption: mnb crypto disable')
+        return
+
+    # Prompt for passphrase
+    passphrase = click.prompt(
+        'Enter encryption passphrase',
+        hide_input=True,
+        confirmation_prompt='Confirm passphrase'
+    )
+
+    try:
+        # Setup encryption
+        click.echo()
+        click.echo('Deriving encryption key...')
+        click.echo('(This may take a few seconds due to 600,000 PBKDF2 iterations)')
+
+        key_manager.setup_encryption(passphrase)
+
+        click.echo()
+        click.echo(click.style('✓ Encryption enabled successfully!', fg='green', bold=True))
+        click.echo()
+        click.echo('Next steps:')
+        click.echo('  1. Run a backup: mnb backup')
+        click.echo('  2. All files will be encrypted before upload')
+        click.echo('  3. Encrypted files will have .enc extension in Nextcloud')
+        click.echo()
+        click.echo('Note: Existing backups remain unencrypted')
+        click.echo('      New/changed files will be encrypted going forward')
+
+    except EncryptionError as e:
+        click.echo()
+        click.echo(click.style(f'✗ Error: {e}', fg='red'))
+        sys.exit(1)
+
+
+@crypto.command('disable')
+@click.pass_context
+def crypto_disable(ctx):
+    """Disable encryption for future backups.
+
+    Note: Existing encrypted backups remain encrypted.
+    """
+    from mnb.crypto.key_manager import KeyManager
+
+    click.echo(click.style('Disable Backup Encryption', fg='yellow', bold=True))
+    click.echo()
+
+    # Load config
+    config = _load_config(ctx.obj.get('config_path'))
+    key_manager = KeyManager(config)
+
+    # Check if encryption is enabled
+    if not key_manager.is_encryption_enabled():
+        click.echo(click.style('Encryption is not enabled', fg='yellow'))
+        return
+
+    # Confirm
+    click.echo('⚠️  Warning:')
+    click.echo('   - Future backups will be UNENCRYPTED')
+    click.echo('   - Existing encrypted backups remain encrypted')
+    click.echo('   - You can re-enable encryption later')
+    click.echo()
+
+    if not click.confirm('Disable encryption?'):
+        click.echo('Cancelled')
+        return
+
+    try:
+        key_manager.disable_encryption()
+
+        click.echo()
+        click.echo(click.style('✓ Encryption disabled', fg='green'))
+        click.echo()
+        click.echo('Future backups will be unencrypted')
+        click.echo('To re-enable: mnb crypto enable')
+
+    except Exception as e:
+        click.echo(click.style(f'Error: {e}', fg='red'))
+        sys.exit(1)
+
+
+@crypto.command('change-passphrase')
+@click.pass_context
+def crypto_change_passphrase(ctx):
+    """Change encryption passphrase.
+
+    Note: This only affects future backups. Existing encrypted backups
+    remain encrypted with the old passphrase.
+    """
+    from mnb.crypto.key_manager import KeyManager
+    from mnb.crypto.encryption import EncryptionError
+
+    click.echo(click.style('Change Encryption Passphrase', fg='cyan', bold=True))
+    click.echo()
+
+    # Load config
+    config = _load_config(ctx.obj.get('config_path'))
+    key_manager = KeyManager(config)
+
+    # Check if encryption is enabled
+    if not key_manager.is_encryption_enabled():
+        click.echo(click.style('Error: Encryption is not enabled', fg='red'))
+        click.echo('Enable encryption first: mnb crypto enable')
+        sys.exit(1)
+
+    # Prompt for current passphrase
+    old_passphrase = click.prompt('Current passphrase', hide_input=True)
+
+    # Verify current passphrase
+    if not key_manager.verify_passphrase(old_passphrase):
+        click.echo()
+        click.echo(click.style('✗ Current passphrase is incorrect', fg='red'))
+        sys.exit(1)
+
+    # Prompt for new passphrase
+    click.echo()
+    new_passphrase = click.prompt(
+        'New passphrase',
+        hide_input=True,
+        confirmation_prompt='Confirm new passphrase'
+    )
+
+    try:
+        click.echo()
+        click.echo('Deriving new encryption key...')
+
+        key_manager.change_passphrase(old_passphrase, new_passphrase)
+
+        click.echo()
+        click.echo(click.style('✓ Passphrase changed successfully!', fg='green', bold=True))
+        click.echo()
+        click.echo('Note: Future backups will use the new passphrase')
+        click.echo('      Existing backups still use the old passphrase')
+
+    except EncryptionError as e:
+        click.echo()
+        click.echo(click.style(f'✗ Error: {e}', fg='red'))
+        sys.exit(1)
+
+
+@crypto.command('status')
+@click.pass_context
+def crypto_status(ctx):
+    """Show encryption status."""
+    from mnb.crypto.key_manager import KeyManager
+
+    click.echo('Encryption Status')
+    click.echo('=' * 50)
+    click.echo()
+
+    # Load config
+    config = _load_config(ctx.obj.get('config_path'))
+    key_manager = KeyManager(config)
+
+    # Check if encryption is enabled
+    if key_manager.is_encryption_enabled():
+        click.echo(click.style('✓ Encryption: ENABLED', fg='green', bold=True))
+        click.echo()
+
+        # Show encryption details
+        click.echo('Configuration:')
+        click.echo(f"  Algorithm: {config.get('encryption.algorithm', 'aes-256-gcm')}")
+        click.echo(f"  Key Derivation: {config.get('encryption.key_derivation.method', 'pbkdf2-hmac-sha256')}")
+        click.echo(f"  Iterations: {config.get('encryption.key_derivation.iterations', 600000):,}")
+        click.echo(f"  Encrypt Filenames: {config.get('encryption.encrypt_filenames', False)}")
+        click.echo()
+
+        # Check if key is available
+        key = key_manager.get_key()
+        if key:
+            click.echo(click.style('✓ Encryption key available in Keychain', fg='green'))
+        else:
+            click.echo(click.style('✗ Warning: Encryption key not found in Keychain', fg='yellow'))
+            click.echo('  Run: mnb crypto enable')
+
+        click.echo()
+        click.echo('All future backups will be encrypted before upload')
+
+    else:
+        click.echo(click.style('✗ Encryption: DISABLED', fg='yellow', bold=True))
+        click.echo()
+        click.echo('⚠️  Warning: Backups are uploaded UNENCRYPTED')
+        click.echo('   - SSH keys, credentials, sensitive files are exposed')
+        click.echo('   - Server administrators can read your backup files')
+        click.echo()
+        click.echo('To enable encryption: mnb crypto enable')
+
+
 if __name__ == '__main__':
     cli()

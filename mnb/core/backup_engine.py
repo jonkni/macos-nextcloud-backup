@@ -11,6 +11,9 @@ from mnb.config.manager import ConfigManager
 from mnb.storage.webdav import WebDAVClient
 from mnb.storage.metadata import MetadataDB
 from mnb.core.scanner import FileScanner, FileInfo
+from mnb.crypto.key_manager import KeyManager
+from mnb.crypto.file_crypto import FileCrypto, get_encrypted_filename
+import tempfile
 
 
 class BackupEngine:
@@ -46,6 +49,11 @@ class BackupEngine:
 
         # Backup folder in Nextcloud
         self.backup_folder = config.get_backup_folder()
+
+        # Initialize encryption components
+        self.key_manager = KeyManager(config)
+        self.file_crypto = FileCrypto()
+        self.encryption_enabled = self.key_manager.is_encryption_enabled()
 
     def test_connection(self) -> bool:
         """Test connection to Nextcloud.
@@ -153,13 +161,55 @@ class BackupEngine:
                 except ValueError:
                     remote_path = f"{snapshot_folder}{file_info.path}"
 
-                # Upload file
-                if not dry_run:
-                    success = self.webdav.upload_file(file_info.path, remote_path)
-                else:
-                    success = True  # Pretend it worked in dry run
+                # Check if encryption is enabled
+                is_encrypted = self.encryption_enabled
+                temp_file = None
 
-                return file_info, remote_path, success
+                try:
+                    if is_encrypted:
+                        # Get encryption key
+                        encryption_key = self.key_manager.get_encryption_key()
+                        if not encryption_key:
+                            # Encryption enabled but no key - should not happen
+                            self.logger.error("Encryption enabled but no key available")
+                            return file_info, remote_path, False
+
+                        # Create temporary encrypted file
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.enc') as tmp:
+                            temp_file = Path(tmp.name)
+
+                        # Encrypt file to temporary location
+                        self.file_crypto.encrypt_file(
+                            file_info.path,
+                            temp_file,
+                            encryption_key
+                        )
+
+                        # Update remote path with .enc extension
+                        remote_path = f"{remote_path}.enc"
+
+                        # Upload encrypted file
+                        if not dry_run:
+                            success = self.webdav.upload_file(temp_file, remote_path)
+                        else:
+                            success = True  # Pretend it worked in dry run
+
+                    else:
+                        # No encryption - upload original file
+                        if not dry_run:
+                            success = self.webdav.upload_file(file_info.path, remote_path)
+                        else:
+                            success = True  # Pretend it worked in dry run
+
+                    return file_info, remote_path, success, is_encrypted
+
+                finally:
+                    # Clean up temporary encrypted file
+                    if temp_file and temp_file.exists():
+                        try:
+                            temp_file.unlink()
+                        except Exception as e:
+                            self.logger.warning(f"Failed to delete temp file {temp_file}: {e}")
 
             # Use ThreadPoolExecutor for parallel uploads
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -171,13 +221,14 @@ class BackupEngine:
 
                 # Process completed uploads
                 for future in as_completed(future_to_file):
-                    file_info, remote_path, success = future.result()
+                    file_info, remote_path, success, is_encrypted = future.result()
 
                     # Thread-safe progress update
                     with upload_lock:
                         if progress_callback:
+                            enc_indicator = " (encrypted)" if is_encrypted else ""
                             progress_callback(
-                                f"Uploading {file_info.path.name}",
+                                f"Uploading {file_info.path.name}{enc_indicator}",
                                 uploaded_count,
                                 len(files_to_backup)
                             )
@@ -187,7 +238,8 @@ class BackupEngine:
                             snapshot_id,
                             file_info,
                             remote_path,
-                            uploaded=success
+                            uploaded=success,
+                            encrypted=is_encrypted
                         )
 
                         if success:
