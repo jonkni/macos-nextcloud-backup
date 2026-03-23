@@ -234,6 +234,7 @@ exclude_patterns:
   - "**/node_modules/"
   - "~/Downloads/"
   - "**/*.log"
+  - "~/.config/mnb/"  # Backup tool's own metadata
 ```
 
 ### Adjust Retention Policy

@@ -201,6 +201,7 @@ exclude_patterns:
   - "**/target/"
   - "**/dist/"
   - "**/build/"
+  - "~/.config/mnb/"  # Exclude backup tool's own metadata
 
 include_paths:
   - "~/Documents/"

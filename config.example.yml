@@ -82,6 +82,7 @@ exclude_patterns:
   - "**/*.log"
   - "**/*.tmp"
   - "**/.cache/"
+  - "~/.config/mnb/"  # Exclude backup tool's own metadata
 
   # Database files (might be too large)
   - "**/*.sqlite-wal"

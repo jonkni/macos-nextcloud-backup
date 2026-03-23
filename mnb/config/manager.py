@@ -285,6 +285,7 @@ class ConfigManager:
                 '~/Library/Logs/',
                 '**/*.log',
                 '**/.cache/',
+                '~/.config/mnb/',  # Exclude backup tool's own metadata
             ],
             'notifications': {
                 'enabled': True,
